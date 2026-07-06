@@ -1,0 +1,264 @@
+// ============================================================
+// Skeningevvs-loggen – Prisma Schema
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================
+// AUTH – better-auth hanterar dessa tabeller
+// ============================================================
+
+model User {
+  id            String   @id @default(cuid())
+  name          String
+  email         String   @unique
+  emailVerified Boolean  @default(false)
+  image         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  accounts Account[]
+  sessions Session[]
+  company  Company?
+
+  @@map("user")
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  userId                String
+  accountId             String
+  providerId            String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("account")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("session")
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("verification")
+}
+
+// ============================================================
+// FÖRETAG, KUNDER & JOBB
+// ============================================================
+
+model Company {
+  id        String   @id @default(cuid())
+  name      String
+  ownerId   String   @unique
+  createdAt DateTime @default(now())
+
+  // Företagsuppgifter
+  orgNummer  String  @default("")
+  adress     String  @default("")
+  postnummer String  @default("")
+  ort        String  @default("")
+  telefon    String  @default("")
+  epost      String  @default("")
+  fSkatt     Boolean @default(false)
+  momsNummer String  @default("")
+  bankgiro   String  @default("")
+  plusgiro   String  @default("")
+  swish      String  @default("")
+  logoUrl    String  @default("")
+  logoKey    String  @default("")
+
+  // Fakturainställningar
+  nastaFakturanummer Int    @default(1)
+  forfallodagar      Int    @default(30)
+  drojsmalsranta     Float  @default(0)
+  fakturatext        String @default("")
+
+  owner     User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  jobs      Job[]
+  customers Customer[]
+
+  @@map("company")
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  companyId String
+  typ       String   @default("privat") // "privat" | "foretag"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Gemensamma fält
+  namn       String
+  adress     String @default("")
+  postnummer String @default("")
+  ort        String @default("")
+  telefon    String @default("")
+  epost      String @default("")
+
+  // Privatperson
+  personnummer String @default("")
+
+  // Företagskund
+  foretagsnamn  String @default("")
+  kontaktperson String @default("")
+  orgNummer     String @default("")
+
+  // ROT-specifikt
+  fastighetsbeteckning String @default("")
+  lagenhetsnummer      String @default("")
+  bostadsrattsforening String @default("")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  jobs    Job[]
+
+  @@index([companyId])
+  @@map("customer")
+}
+
+model Job {
+  id         String  @id @default(cuid())
+  companyId  String
+  customerId String?
+
+  // Status
+  rotAvdrag  Boolean @default(false)
+  pagaende   Boolean @default(false)
+  utfort     Boolean @default(false)
+  fakturerat Boolean @default(false)
+  betalt     Boolean @default(false)
+
+  // Fakturering
+  fakturanummer Int?
+
+  // Prissättning
+  timpris       Float  @default(0)
+  milersattning Float  @default(0)
+  fastPris      Float?
+
+  // Anteckningar
+  anteckningar   String @default("")
+  utfortArbete   String @default("")
+  planeratArbete String @default("")
+
+  // Tidsstämplar
+  skapad    DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationer
+  company         Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer        Customer?      @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  artiklar        Article[]
+  resor           Trip[]
+  arbetspass      WorkSession[]
+  images          JobImage[]
+  ovrigaKostnader OvrigKostnad[]
+
+  @@index([companyId])
+  @@index([customerId])
+  @@index([companyId, fakturerat])
+  @@index([companyId, betalt])
+  @@map("job")
+}
+
+model Article {
+  id    String @id @default(cuid())
+  jobId String
+
+  namn           String
+  artikelnr      String @default("")
+  aterforsaljare String @default("")
+  inkopspris     Float  @default(0)
+  pris           Float
+  antal          Int    @default(1)
+
+  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@map("article")
+}
+
+model Trip {
+  id    String @id @default(cuid())
+  jobId String
+
+  datum   DateTime @db.Date
+  stracka Float    @default(0)
+
+  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@map("trip")
+}
+
+model WorkSession {
+  id    String @id @default(cuid())
+  jobId String
+
+  datum  DateTime @db.Date
+  timmar Float
+
+  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@map("work_session")
+}
+
+model JobImage {
+  id        String   @id @default(cuid())
+  jobId     String
+  url       String
+  key       String
+  createdAt DateTime @default(now())
+
+  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@map("job_image")
+}
+
+model OvrigKostnad {
+  id    String @id @default(cuid())
+  jobId String
+
+  beskrivning String
+  pris        Float  @default(0)
+
+  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@map("ovrig_kostnad")
+}
