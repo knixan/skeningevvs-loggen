@@ -349,10 +349,14 @@ export default function JobForm({
                     />
                     <button
                       type="button"
-                      className="absolute top-1 right-1 bg-black/60 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={() => taBortBild(bild.key)}
+                      className="absolute top-1 right-1 rounded-full bg-black/60 p-1 text-white hover:bg-black/80"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        taBortBild(bild.key);
+                      }}
+                      aria-label="Ta bort bild"
                     >
-                      <X className="h-3 w-3 text-white" />
+                      <X className="h-3.5 w-3.5" />
                     </button>
                   </div>
                 ))}
