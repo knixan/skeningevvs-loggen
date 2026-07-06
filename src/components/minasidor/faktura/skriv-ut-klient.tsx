@@ -65,10 +65,9 @@ export default function SkrivUtKlient({
   forfalloDate.setDate(forfalloDate.getDate() + (company.forfallodagar || 30));
   const forfalloStr = forfalloDate.toLocaleDateString("sv-SE");
 
-  const exklMoms =
-    job.fastPris !== undefined && job.fastPris !== null
-      ? job.fastPris
-      : summary.totalExklMoms;
+  const arFastPris = job.fastPris !== undefined && job.fastPris !== null;
+
+  const exklMoms = arFastPris ? job.fastPris! : summary.totalExklMoms;
   const moms = exklMoms * 0.25;
   const totalInklMoms = exklMoms + moms;
 
@@ -302,91 +301,89 @@ export default function SkrivUtKlient({
         </div>
 
         {/* Fakturaraderna */}
-        <table className="rader">
-          <thead>
-            <tr>
-              <th>Beskrivning</th>
-              <th className="right">Antal</th>
-              <th className="right">À-pris</th>
-              <th className="right">Belopp</th>
-            </tr>
-          </thead>
-          <tbody>
-            {job.artiklar.map((a, i) => (
-              <tr key={i}>
-                <td>
-                  {a.namn}
-                  {a.artikelnr && (
-                    <span style={{ color: "#888", fontSize: "8.5pt" }}>
-                      {" "}
-                      · {a.artikelnr}
-                    </span>
-                  )}
-                  {a.aterforsaljare && (
-                    <span style={{ color: "#888", fontSize: "8.5pt" }}>
-                      {" "}
-                      · {a.aterforsaljare}
-                    </span>
-                  )}
-                </td>
-                <td className="right">{a.antal} st</td>
-                <td className="right">{a.pris.toLocaleString("sv-SE")} kr</td>
-                <td className="right bold">
-                  {(a.pris * a.antal).toLocaleString("sv-SE")} kr
-                </td>
-              </tr>
-            ))}
-            {(job.ovrigaKostnader ?? []).map((k, i) => (
-              <tr key={`ok-${i}`}>
-                <td>{k.beskrivning}</td>
-                <td className="right">1 st</td>
-                <td className="right">{k.pris.toLocaleString("sv-SE")} kr</td>
-                <td className="right bold">
-                  {k.pris.toLocaleString("sv-SE")} kr
-                </td>
-              </tr>
-            ))}
-            {summary.totalTimmar > 0 && summary.timpris > 0 && (
+        {!arFastPris && (
+          <table className="rader">
+            <thead>
               <tr>
-                <td>Arbetstid</td>
-                <td className="right">{summary.totalTimmar} h</td>
-                <td className="right">
-                  {summary.timpris.toLocaleString("sv-SE")} kr/h
-                </td>
-                <td className="right bold">
-                  {summary.arbetstidSum.toLocaleString("sv-SE")} kr
-                </td>
+                <th>Beskrivning</th>
+                <th className="right">Antal</th>
+                <th className="right">À-pris</th>
+                <th className="right">Belopp</th>
               </tr>
-            )}
-            {summary.totalStracka > 0 && summary.milersattning > 0 && (
-              <tr>
-                <td>Resor / milersättning</td>
-                <td className="right">{summary.totalStracka} km</td>
-                <td className="right">
-                  {summary.milersattning.toLocaleString("sv-SE")} kr/km
-                </td>
-                <td className="right bold">
-                  {summary.resorSum.toLocaleString("sv-SE")} kr
-                </td>
-              </tr>
-            )}
-            {job.utfortArbete && (
-              <tr>
-                <td
-                  colSpan={4}
-                  style={{
-                    paddingTop: 12,
-                    paddingBottom: 4,
-                    color: "#555",
-                    fontSize: "9pt",
-                  }}
-                >
-                  <strong>Utfört arbete:</strong> {job.utfortArbete}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {job.artiklar.map((a, i) => (
+                <tr key={i}>
+                  <td>
+                    {a.namn}
+                    {a.artikelnr && (
+                      <span style={{ color: "#888", fontSize: "8.5pt" }}>
+                        {" "}
+                        · {a.artikelnr}
+                      </span>
+                    )}
+                    {a.aterforsaljare && (
+                      <span style={{ color: "#888", fontSize: "8.5pt" }}>
+                        {" "}
+                        · {a.aterforsaljare}
+                      </span>
+                    )}
+                  </td>
+                  <td className="right">{a.antal} st</td>
+                  <td className="right">{a.pris.toLocaleString("sv-SE")} kr</td>
+                  <td className="right bold">
+                    {(a.pris * a.antal).toLocaleString("sv-SE")} kr
+                  </td>
+                </tr>
+              ))}
+              {(job.ovrigaKostnader ?? []).map((k, i) => (
+                <tr key={`ok-${i}`}>
+                  <td>{k.beskrivning}</td>
+                  <td className="right">1 st</td>
+                  <td className="right">{k.pris.toLocaleString("sv-SE")} kr</td>
+                  <td className="right bold">
+                    {k.pris.toLocaleString("sv-SE")} kr
+                  </td>
+                </tr>
+              ))}
+              {summary.totalTimmar > 0 && summary.timpris > 0 && (
+                <tr>
+                  <td>Arbetstid</td>
+                  <td className="right">{summary.totalTimmar} h</td>
+                  <td className="right">
+                    {summary.timpris.toLocaleString("sv-SE")} kr/h
+                  </td>
+                  <td className="right bold">
+                    {summary.arbetstidSum.toLocaleString("sv-SE")} kr
+                  </td>
+                </tr>
+              )}
+              {summary.totalStracka > 0 && summary.milersattning > 0 && (
+                <tr>
+                  <td>Resor / milersättning</td>
+                  <td className="right">{summary.totalStracka} km</td>
+                  <td className="right">
+                    {summary.milersattning.toLocaleString("sv-SE")} kr/km
+                  </td>
+                  <td className="right bold">
+                    {summary.resorSum.toLocaleString("sv-SE")} kr
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        )}
+        {job.utfortArbete && (
+          <p
+            style={{
+              marginBottom: 20,
+              color: "#555",
+              fontSize: "9pt",
+            }}
+          >
+            <strong>Utfört arbete:</strong> {job.utfortArbete}
+          </p>
+        )}
 
         {/* Summering */}
         <div className="summering">

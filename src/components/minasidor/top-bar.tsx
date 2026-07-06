@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { signOut } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
+import Image from "next/image";
 
 export function TopBar() {
   const router = useRouter();
@@ -19,10 +20,23 @@ export function TopBar() {
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between border-b bg-background px-4">
+      <Image
+        src="/skeningevvs-faktura-logga.png"
+        alt="KnegarLoggen"
+        width={300}
+        height={300}
+        className="h-18 w-18 object-contain"
+        priority
+      />
       <Link href="/mina-sidor" className="font-semibold">
-        Skeningevvs-loggen
+        Skeninge VVS - Loggen
       </Link>
-      <Button variant="outline" size="sm" onClick={handleLogout} disabled={loading}>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={handleLogout}
+        disabled={loading}
+      >
         {loading ? "Loggar ut…" : "Logga ut"}
       </Button>
     </header>

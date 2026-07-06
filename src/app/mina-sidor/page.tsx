@@ -11,7 +11,9 @@ import JobDashboard from "@/components/minasidor/jobb/job-dashboard";
 export default function MinaSidorPage() {
   return (
     <main className="container mx-auto px-4 py-8">
-      <Suspense fallback={<div className="animate-pulse h-8 w-48 bg-muted rounded" />}>
+      <Suspense
+        fallback={<div className="animate-pulse h-8 w-48 bg-muted rounded" />}
+      >
         <MinaSidorInnehall />
       </Suspense>
     </main>

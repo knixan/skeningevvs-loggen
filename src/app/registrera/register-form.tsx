@@ -51,7 +51,12 @@ export function RegisterForm() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="name">Namn</Label>
-            <Input id="name" name="name" required placeholder="Anna Andersson" />
+            <Input
+              id="name"
+              name="name"
+              required
+              placeholder="Anna Andersson"
+            />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="email">E-post</Label>

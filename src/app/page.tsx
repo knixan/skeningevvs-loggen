@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import Image from "next/image";
 
 export default function Home() {
   return (
@@ -8,9 +9,18 @@ export default function Home() {
         <h1 className="text-3xl font-semibold tracking-tight text-foreground">
           Skeningevvs-loggen
         </h1>
+
+        <Image
+          src="/skeningevvs-faktura-logga.png"
+          alt="KnegarLoggen"
+          width={300}
+          height={300}
+          className="h-48 w-48 object-contain"
+          priority
+        />
+
         <p className="max-w-md text-lg text-muted-foreground">
-          Din personliga loggbok. Logga in eller skapa ett konto för att
-          komma igång.
+          Din personliga loggbok.
         </p>
         <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
           <Button asChild size="lg" className="sm:w-40">

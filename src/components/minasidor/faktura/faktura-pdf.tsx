@@ -148,6 +148,8 @@ export function FakturaPdf({
       : 0;
   const attBetala = totalInklMoms - rotAvdrag;
 
+  const arFastPris = job.fastPris != null;
+
   const kund = job.customer;
   const kundNamn = kund
     ? kund.typ === "foretag" && kund.foretagsnamn
@@ -237,88 +239,94 @@ export function FakturaPdf({
         </View>
 
         {/* ── Artikelrader ── */}
-        <View style={S.tableWrap}>
-          <View style={S.tableHead}>
-            <Text style={[S.th, { flex: 1 }]}>Beskrivning</Text>
-            <Text style={[S.th, { width: 44, textAlign: "right" }]}>Antal</Text>
-            <Text style={[S.th, { width: 62, textAlign: "right" }]}>
-              À-pris
-            </Text>
-            <Text style={[S.th, { width: 68, textAlign: "right" }]}>
-              Belopp
+        {!arFastPris && (
+          <View style={S.tableWrap}>
+            <View style={S.tableHead}>
+              <Text style={[S.th, { flex: 1 }]}>Beskrivning</Text>
+              <Text style={[S.th, { width: 44, textAlign: "right" }]}>
+                Antal
+              </Text>
+              <Text style={[S.th, { width: 62, textAlign: "right" }]}>
+                À-pris
+              </Text>
+              <Text style={[S.th, { width: 68, textAlign: "right" }]}>
+                Belopp
+              </Text>
+            </View>
+
+            {job.artiklar.map((a, i) => (
+              <View style={S.row} key={i}>
+                <View style={{ flex: 1 }}>
+                  <Text style={S.tdDesc}>{a.namn}</Text>
+                  {a.artikelnr || a.aterforsaljare ? (
+                    <Text style={S.tdDescSub}>
+                      {[a.artikelnr, a.aterforsaljare]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </Text>
+                  ) : null}
+                </View>
+                <Text style={[S.tdRight, { width: 44 }]}>{a.antal} st</Text>
+                <Text style={[S.tdRight, { width: 62 }]}>{kr(a.pris)}</Text>
+                <Text style={[S.tdRight, S.tdBold, { width: 68 }]}>
+                  {kr(a.pris * a.antal)}
+                </Text>
+              </View>
+            ))}
+
+            {(job.ovrigaKostnader ?? []).map((k, i) => (
+              <View style={S.row} key={`ok-${i}`}>
+                <Text style={[S.tdDesc, { flex: 1 }]}>{k.beskrivning}</Text>
+                <Text style={[S.tdRight, { width: 44 }]}>1 st</Text>
+                <Text style={[S.tdRight, { width: 62 }]}>{kr(k.pris)}</Text>
+                <Text style={[S.tdRight, S.tdBold, { width: 68 }]}>
+                  {kr(k.pris)}
+                </Text>
+              </View>
+            ))}
+
+            {summary.totalTimmar > 0 && summary.timpris > 0 && (
+              <View style={S.row}>
+                <Text style={[S.tdDesc, { flex: 1 }]}>Arbetstid</Text>
+                <Text style={[S.tdRight, { width: 44 }]}>
+                  {summary.totalTimmar} h
+                </Text>
+                <Text style={[S.tdRight, { width: 62 }]}>
+                  {kr(summary.timpris)}/h
+                </Text>
+                <Text style={[S.tdRight, S.tdBold, { width: 68 }]}>
+                  {kr(summary.arbetstidSum)}
+                </Text>
+              </View>
+            )}
+
+            {summary.totalStracka > 0 && summary.milersattning > 0 && (
+              <View style={S.row}>
+                <Text style={[S.tdDesc, { flex: 1 }]}>
+                  Resor / milersättning
+                </Text>
+                <Text style={[S.tdRight, { width: 44 }]}>
+                  {summary.totalStracka} km
+                </Text>
+                <Text style={[S.tdRight, { width: 62 }]}>
+                  {kr(summary.milersattning)}/km
+                </Text>
+                <Text style={[S.tdRight, S.tdBold, { width: 68 }]}>
+                  {kr(summary.resorSum)}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {job.utfortArbete && (
+          <View style={arFastPris ? { marginBottom: 16 } : S.noteRow}>
+            <Text style={S.noteText}>
+              <Text style={S.noteBold}>Utfört arbete: </Text>
+              {job.utfortArbete}
             </Text>
           </View>
-
-          {job.artiklar.map((a, i) => (
-            <View style={S.row} key={i}>
-              <View style={{ flex: 1 }}>
-                <Text style={S.tdDesc}>{a.namn}</Text>
-                {a.artikelnr || a.aterforsaljare ? (
-                  <Text style={S.tdDescSub}>
-                    {[a.artikelnr, a.aterforsaljare]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </Text>
-                ) : null}
-              </View>
-              <Text style={[S.tdRight, { width: 44 }]}>{a.antal} st</Text>
-              <Text style={[S.tdRight, { width: 62 }]}>{kr(a.pris)}</Text>
-              <Text style={[S.tdRight, S.tdBold, { width: 68 }]}>
-                {kr(a.pris * a.antal)}
-              </Text>
-            </View>
-          ))}
-
-          {(job.ovrigaKostnader ?? []).map((k, i) => (
-            <View style={S.row} key={`ok-${i}`}>
-              <Text style={[S.tdDesc, { flex: 1 }]}>{k.beskrivning}</Text>
-              <Text style={[S.tdRight, { width: 44 }]}>1 st</Text>
-              <Text style={[S.tdRight, { width: 62 }]}>{kr(k.pris)}</Text>
-              <Text style={[S.tdRight, S.tdBold, { width: 68 }]}>
-                {kr(k.pris)}
-              </Text>
-            </View>
-          ))}
-
-          {summary.totalTimmar > 0 && summary.timpris > 0 && (
-            <View style={S.row}>
-              <Text style={[S.tdDesc, { flex: 1 }]}>Arbetstid</Text>
-              <Text style={[S.tdRight, { width: 44 }]}>
-                {summary.totalTimmar} h
-              </Text>
-              <Text style={[S.tdRight, { width: 62 }]}>
-                {kr(summary.timpris)}/h
-              </Text>
-              <Text style={[S.tdRight, S.tdBold, { width: 68 }]}>
-                {kr(summary.arbetstidSum)}
-              </Text>
-            </View>
-          )}
-
-          {summary.totalStracka > 0 && summary.milersattning > 0 && (
-            <View style={S.row}>
-              <Text style={[S.tdDesc, { flex: 1 }]}>Resor / milersättning</Text>
-              <Text style={[S.tdRight, { width: 44 }]}>
-                {summary.totalStracka} km
-              </Text>
-              <Text style={[S.tdRight, { width: 62 }]}>
-                {kr(summary.milersattning)}/km
-              </Text>
-              <Text style={[S.tdRight, S.tdBold, { width: 68 }]}>
-                {kr(summary.resorSum)}
-              </Text>
-            </View>
-          )}
-
-          {job.utfortArbete && (
-            <View style={S.noteRow}>
-              <Text style={S.noteText}>
-                <Text style={S.noteBold}>Utfört arbete: </Text>
-                {job.utfortArbete}
-              </Text>
-            </View>
-          )}
-        </View>
+        )}
 
         {/* ── Summering ── */}
         <View style={S.summWrap}>

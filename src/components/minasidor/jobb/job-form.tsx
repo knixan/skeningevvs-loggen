@@ -289,6 +289,90 @@ export default function JobForm({
           )}
         </CardContent>
       </Card>
+      {/* Planera arbete & Bilder */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ClipboardList className="h-5 w-5 text-muted-foreground" />
+            Planera arbete & Bilder
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Textarea
+            rows={4}
+            {...register("planeratArbete")}
+            placeholder="Vad ska göras? T.ex. byta rör i kök, dra el till garage..."
+          />
+          <div className="space-y-2">
+            <Label className="flex items-center gap-1.5">
+              <ImagePlus className="h-3.5 w-3.5 text-muted-foreground" />
+              Bilder
+            </Label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={hanteraFiler}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={laddarUpp}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <ImagePlus className="mr-1 h-4 w-4" />
+              {laddarUpp ? "Laddar upp..." : "Lägg till bilder"}
+            </Button>
+            {bilder.length > 0 && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-2">
+                {bilder.map((bild) => (
+                  <div key={bild.key} className="relative group aspect-square">
+                    <Image
+                      src={bild.url}
+                      alt="Jobbild"
+                      fill
+                      sizes="(max-width: 640px) 33vw, 200px"
+                      className="object-cover rounded-md cursor-pointer"
+                      onClick={() => setValdBild(bild.url)}
+                    />
+                    <button
+                      type="button"
+                      className="absolute top-1 right-1 bg-black/60 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() =>
+                        setBilder((prev) =>
+                          prev.filter((b) => b.key !== bild.key),
+                        )
+                      }
+                    >
+                      <X className="h-3 w-3 text-white" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Utfört arbete */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Wrench className="h-5 w-5 text-muted-foreground" />
+            Utfört arbete
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Textarea
+            rows={4}
+            {...register("utfortArbete")}
+            placeholder="Beskriv vad som har gjorts i projektet..."
+          />
+        </CardContent>
+      </Card>
 
       {/* Artiklar */}
       <Card>
@@ -341,7 +425,11 @@ export default function JobForm({
           </div>
           {artiklar.fields.map((field, i) => (
             <div key={field.id} className="grid grid-cols-12 gap-2 items-start">
-              <div className="col-span-12 sm:col-span-3">
+              <div className="col-span-12 sm:col-span-3 space-y-1">
+                <Label className="text-xs text-muted-foreground sm:hidden flex items-center gap-1">
+                  <Tag className="h-3 w-3" />
+                  Artikelnamn
+                </Label>
                 <Input
                   {...register(`artiklar.${i}.namn`)}
                   placeholder="Artikelnamn"
@@ -352,13 +440,21 @@ export default function JobForm({
                   </p>
                 )}
               </div>
-              <div className="col-span-12 sm:col-span-2">
+              <div className="col-span-12 sm:col-span-2 space-y-1">
+                <Label className="text-xs text-muted-foreground sm:hidden flex items-center gap-1">
+                  <Store className="h-3 w-3" />
+                  Återförsäljare
+                </Label>
                 <Input
                   {...register(`artiklar.${i}.aterforsaljare`)}
                   placeholder="Återförsäljare"
                 />
               </div>
-              <div className="col-span-2 sm:col-span-1">
+              <div className="col-span-2 sm:col-span-1 space-y-1">
+                <Label className="text-xs text-muted-foreground sm:hidden flex items-center gap-1">
+                  <Layers2 className="h-3 w-3" />
+                  Antal
+                </Label>
                 <Input
                   type="number"
                   step="1"
@@ -367,7 +463,11 @@ export default function JobForm({
                   placeholder="Ant."
                 />
               </div>
-              <div className="col-span-4 sm:col-span-2">
+              <div className="col-span-4 sm:col-span-2 space-y-1">
+                <Label className="text-xs text-muted-foreground sm:hidden flex items-center gap-1">
+                  <Receipt className="h-3 w-3" />
+                  Inköpspris
+                </Label>
                 <Input
                   type="number"
                   step="0.01"
@@ -378,7 +478,11 @@ export default function JobForm({
                   placeholder="Inköpspris"
                 />
               </div>
-              <div className="col-span-5 sm:col-span-2">
+              <div className="col-span-5 sm:col-span-2 space-y-1">
+                <Label className="text-xs text-muted-foreground sm:hidden flex items-center gap-1">
+                  <Receipt className="h-3 w-3" />
+                  Utpris (kr)
+                </Label>
                 <Input
                   type="number"
                   step="0.01"
@@ -605,91 +709,6 @@ export default function JobForm({
               </div>
             </div>
           ))}
-        </CardContent>
-      </Card>
-
-      {/* Planera arbete & Bilder */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ClipboardList className="h-5 w-5 text-muted-foreground" />
-            Planera arbete & Bilder
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Textarea
-            rows={4}
-            {...register("planeratArbete")}
-            placeholder="Vad ska göras? T.ex. byta rör i kök, dra el till garage..."
-          />
-          <div className="space-y-2">
-            <Label className="flex items-center gap-1.5">
-              <ImagePlus className="h-3.5 w-3.5 text-muted-foreground" />
-              Bilder
-            </Label>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              className="hidden"
-              onChange={hanteraFiler}
-            />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={laddarUpp}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <ImagePlus className="mr-1 h-4 w-4" />
-              {laddarUpp ? "Laddar upp..." : "Lägg till bilder"}
-            </Button>
-            {bilder.length > 0 && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-2">
-                {bilder.map((bild) => (
-                  <div key={bild.key} className="relative group aspect-square">
-                    <Image
-                      src={bild.url}
-                      alt="Jobbild"
-                      fill
-                      sizes="(max-width: 640px) 33vw, 200px"
-                      className="object-cover rounded-md cursor-pointer"
-                      onClick={() => setValdBild(bild.url)}
-                    />
-                    <button
-                      type="button"
-                      className="absolute top-1 right-1 bg-black/60 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={() =>
-                        setBilder((prev) =>
-                          prev.filter((b) => b.key !== bild.key),
-                        )
-                      }
-                    >
-                      <X className="h-3 w-3 text-white" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Utfört arbete */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Wrench className="h-5 w-5 text-muted-foreground" />
-            Utfört arbete
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Textarea
-            rows={4}
-            {...register("utfortArbete")}
-            placeholder="Beskriv vad som har gjorts i projektet..."
-          />
         </CardContent>
       </Card>
 
