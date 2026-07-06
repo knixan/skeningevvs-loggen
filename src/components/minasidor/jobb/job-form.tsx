@@ -40,6 +40,7 @@ import {
   beräknaSummering,
   type Customer,
 } from "@/lib/job-schema";
+import { deleteUploadedImage } from "@/lib/job-actions";
 import { useUploadThing } from "@/lib/uploadthing-client";
 import { ImagePlus, X } from "lucide-react";
 import { useState, useRef } from "react";
@@ -154,6 +155,14 @@ export default function JobForm({
       toast.error("Bilduppladdning misslyckades. Försök igen.");
     } finally {
       setLaddarUpp(false);
+    }
+  }
+
+  async function taBortBild(key: string) {
+    setBilder((prev) => prev.filter((b) => b.key !== key));
+    const result = await deleteUploadedImage(key);
+    if (!result.ok) {
+      toast.error("Kunde inte radera bilden från lagringen.");
     }
   }
 
@@ -341,11 +350,7 @@ export default function JobForm({
                     <button
                       type="button"
                       className="absolute top-1 right-1 bg-black/60 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={() =>
-                        setBilder((prev) =>
-                          prev.filter((b) => b.key !== bild.key),
-                        )
-                      }
+                      onClick={() => taBortBild(bild.key)}
                     >
                       <X className="h-3 w-3 text-white" />
                     </button>
@@ -531,7 +536,7 @@ export default function JobForm({
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-xs text-muted-foreground">
-            T.ex. förbrukningsmaterial, hyrd utrustning, parkeringskostnad.
+            T.ex. förbrukningsmaterial, bortforsling, hyrd utrustning, parkeringskostnad.
           </p>
           {ovrigaKostnader.fields.length > 0 && (
             <div className="hidden sm:grid sm:grid-cols-12 gap-2 text-xs font-medium text-muted-foreground px-1">

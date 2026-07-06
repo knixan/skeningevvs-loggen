@@ -772,3 +772,17 @@ export async function reserverFakturanummer(
     };
   }
 }
+
+export async function deleteUploadedImage(key: string) {
+  const ctx = await requireSession();
+  if ("error" in ctx) return ctx;
+
+  try {
+    await utapi.deleteFiles(key);
+  } catch (err) {
+    console.error("Kunde inte radera bild från UploadThing:", err);
+    return { ok: false, error: "Kunde inte radera bilden" };
+  }
+
+  return { ok: true as const };
+}
