@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import Image from "next/image";
 
 export function LoginForm() {
   const router = useRouter();
@@ -37,9 +38,18 @@ export function LoginForm() {
 
   return (
     <Card className="w-full max-w-md">
+          <Image
+                src="/skeningevvs-faktura-logga.png"
+                alt="KnegarLoggen"
+                width={300}
+                height={300}
+                className="h-48 w-48 object-contain"
+                priority
+              />
       <CardHeader>
         <CardTitle className="text-2xl">Logga in</CardTitle>
       </CardHeader>
+       
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">

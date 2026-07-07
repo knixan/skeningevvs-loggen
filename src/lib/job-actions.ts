@@ -36,9 +36,27 @@ async function getOrCreateCompany(userId: string) {
     where: { ownerId: userId },
   });
   if (existing) return existing;
-  return prisma.company.create({
-    data: { name: DEFAULT_COMPANY_NAME, ownerId: userId },
-  });
+
+  try {
+    return await prisma.company.create({
+      data: { name: DEFAULT_COMPANY_NAME, ownerId: userId },
+    });
+  } catch (err) {
+    // Om ett samtidigt anrop redan hann skapa företaget (unikt ownerId),
+    // hämta det istället för att låta krascha.
+    const isUniqueConstraintError =
+      typeof err === "object" &&
+      err !== null &&
+      "code" in err &&
+      err.code === "P2002";
+    if (isUniqueConstraintError) {
+      const company = await prisma.company.findFirst({
+        where: { ownerId: userId },
+      });
+      if (company) return company;
+    }
+    throw err;
+  }
 }
 
 type CompanyCtx = { company: Awaited<ReturnType<typeof getOrCreateCompany>> };
@@ -189,6 +207,20 @@ export async function updateCompanySettings(data: CompanyInput) {
   const d = parsed.data;
 
   const { company } = ctx;
+
+  // Hindra att nästa fakturanummer flyttas bakåt förbi ett nummer som redan
+  // är utfärdat till ett jobb – annars kan två fakturor få samma nummer.
+  const { _max } = await prisma.job.aggregate({
+    where: { companyId: company.id },
+    _max: { fakturanummer: true },
+  });
+  const hogstaUtfardade = _max.fakturanummer ?? 0;
+  if (d.nastaFakturanummer <= hogstaUtfardade) {
+    return {
+      ok: false,
+      error: `Nästa fakturanummer måste vara högre än det senast utfärdade fakturanumret (${hogstaUtfardade}).`,
+    };
+  }
 
   await prisma.company.update({
     where: { id: company.id },
@@ -558,100 +590,112 @@ export async function updateJob(
     (i) => !keepKostnaderIds.includes(i),
   );
 
-  await prisma.$transaction([
-    // Artiklar
-    prisma.article.deleteMany({ where: { id: { in: deleteArtiklarIds } } }),
-    ...data.artiklar.map((a) =>
-      a.id
-        ? prisma.article.update({
-            where: { id: a.id },
-            data: {
-              namn: a.namn,
-              artikelnr: a.artikelnr ?? "",
-              aterforsaljare: a.aterforsaljare ?? "",
-              inkopspris: a.inkopspris ?? 0,
-              pris: a.pris,
-              antal: a.antal,
-            },
-          })
-        : prisma.article.create({
-            data: {
-              jobId: id,
-              namn: a.namn,
-              artikelnr: a.artikelnr ?? "",
-              aterforsaljare: a.aterforsaljare ?? "",
-              inkopspris: a.inkopspris ?? 0,
-              pris: a.pris,
-              antal: a.antal,
-            },
-          }),
-    ),
-    // Resor
-    prisma.trip.deleteMany({ where: { id: { in: deleteResorIds } } }),
-    ...data.resor.map((r) =>
-      r.id
-        ? prisma.trip.update({
-            where: { id: r.id },
-            data: { datum: new Date(r.datum), stracka: r.stracka },
-          })
-        : prisma.trip.create({
-            data: { jobId: id, datum: new Date(r.datum), stracka: r.stracka },
-          }),
-    ),
-    // Arbetspass
-    prisma.workSession.deleteMany({
-      where: { id: { in: deleteArbetspassIds } },
-    }),
-    ...data.arbetstider.map((w) =>
-      w.id
-        ? prisma.workSession.update({
-            where: { id: w.id },
-            data: { datum: new Date(w.datum), timmar: w.timmar },
-          })
-        : prisma.workSession.create({
-            data: { jobId: id, datum: new Date(w.datum), timmar: w.timmar },
-          }),
-    ),
-    // Övriga kostnader
-    prisma.ovrigKostnad.deleteMany({
-      where: { id: { in: deleteKostnaderIds } },
-    }),
-    ...(data.ovrigaKostnader ?? []).map((k) =>
-      k.id
-        ? prisma.ovrigKostnad.update({
-            where: { id: k.id },
-            data: { beskrivning: k.beskrivning, pris: k.pris },
-          })
-        : prisma.ovrigKostnad.create({
-            data: { jobId: id, beskrivning: k.beskrivning, pris: k.pris },
-          }),
-    ),
-    // Bilder
-    prisma.jobImage.deleteMany({ where: { jobId: id, key: { in: toDelete } } }),
-    ...bilder
-      .filter((b) => !existingImageKeys.includes(b.key))
-      .map((b) =>
-        prisma.jobImage.create({ data: { jobId: id, url: b.url, key: b.key } }),
+  try {
+    await prisma.$transaction([
+      // Artiklar
+      prisma.article.deleteMany({ where: { id: { in: deleteArtiklarIds } } }),
+      ...data.artiklar.map((a) =>
+        a.id
+          ? prisma.article.update({
+              where: { id: a.id },
+              data: {
+                namn: a.namn,
+                artikelnr: a.artikelnr ?? "",
+                aterforsaljare: a.aterforsaljare ?? "",
+                inkopspris: a.inkopspris ?? 0,
+                pris: a.pris,
+                antal: a.antal,
+              },
+            })
+          : prisma.article.create({
+              data: {
+                jobId: id,
+                namn: a.namn,
+                artikelnr: a.artikelnr ?? "",
+                aterforsaljare: a.aterforsaljare ?? "",
+                inkopspris: a.inkopspris ?? 0,
+                pris: a.pris,
+                antal: a.antal,
+              },
+            }),
       ),
-    // Jobb-uppdatering
-    prisma.job.update({
-      where: { id },
-      data: {
-        customerId: data.customerId ?? null,
-        rotAvdrag: data.rotAvdrag,
-        timpris: data.timpris ?? 0,
-        milersattning: data.milersattning ?? 0,
-        fastPris: data.fastPris ?? null,
-        pagaende: data.pagaende,
-        utfort: data.utfort,
-        fakturerat: data.fakturerat,
-        betalt: data.betalt,
-        anteckningar: data.anteckningar ?? "",
-        utfortArbete: data.utfortArbete ?? "",
-        planeratArbete: data.planeratArbete ?? "",
-      },
-    }),
-  ]);
+      // Resor
+      prisma.trip.deleteMany({ where: { id: { in: deleteResorIds } } }),
+      ...data.resor.map((r) =>
+        r.id
+          ? prisma.trip.update({
+              where: { id: r.id },
+              data: { datum: new Date(r.datum), stracka: r.stracka },
+            })
+          : prisma.trip.create({
+              data: { jobId: id, datum: new Date(r.datum), stracka: r.stracka },
+            }),
+      ),
+      // Arbetspass
+      prisma.workSession.deleteMany({
+        where: { id: { in: deleteArbetspassIds } },
+      }),
+      ...data.arbetstider.map((w) =>
+        w.id
+          ? prisma.workSession.update({
+              where: { id: w.id },
+              data: { datum: new Date(w.datum), timmar: w.timmar },
+            })
+          : prisma.workSession.create({
+              data: { jobId: id, datum: new Date(w.datum), timmar: w.timmar },
+            }),
+      ),
+      // Övriga kostnader
+      prisma.ovrigKostnad.deleteMany({
+        where: { id: { in: deleteKostnaderIds } },
+      }),
+      ...(data.ovrigaKostnader ?? []).map((k) =>
+        k.id
+          ? prisma.ovrigKostnad.update({
+              where: { id: k.id },
+              data: { beskrivning: k.beskrivning, pris: k.pris },
+            })
+          : prisma.ovrigKostnad.create({
+              data: { jobId: id, beskrivning: k.beskrivning, pris: k.pris },
+            }),
+      ),
+      // Bilder
+      prisma.jobImage.deleteMany({
+        where: { jobId: id, key: { in: toDelete } },
+      }),
+      ...bilder
+        .filter((b) => !existingImageKeys.includes(b.key))
+        .map((b) =>
+          prisma.jobImage.create({
+            data: { jobId: id, url: b.url, key: b.key },
+          }),
+        ),
+      // Jobb-uppdatering
+      prisma.job.update({
+        where: { id },
+        data: {
+          customerId: data.customerId ?? null,
+          rotAvdrag: data.rotAvdrag,
+          timpris: data.timpris ?? 0,
+          milersattning: data.milersattning ?? 0,
+          fastPris: data.fastPris ?? null,
+          pagaende: data.pagaende,
+          utfort: data.utfort,
+          fakturerat: data.fakturerat,
+          betalt: data.betalt,
+          anteckningar: data.anteckningar ?? "",
+          utfortArbete: data.utfortArbete ?? "",
+          planeratArbete: data.planeratArbete ?? "",
+        },
+      }),
+    ]);
+  } catch (err) {
+    console.error("Kunde inte uppdatera jobb:", err);
+    return {
+      ok: false,
+      error: "Kunde inte spara ändringarna. Ladda om sidan och försök igen.",
+    };
+  }
 
   if (toDelete.length > 0) {
     try {
@@ -739,13 +783,16 @@ export async function reserverFakturanummer(
       });
       if (!company) throw new Error("Inget företag hittat");
 
-      const job = await tx.job.findFirst({
-        where: { id: jobId, companyId: company.id },
-        select: { fakturanummer: true },
-      });
-      if (!job) throw new Error("Jobb hittades inte");
-
-      if (job.fakturanummer) return job.fakturanummer;
+      // Lås jobbraden (FOR UPDATE) innan vi läser fakturanummer. Utan detta
+      // kan två samtidiga anrop för samma jobb (t.ex. två öppna flikar)
+      // båda läsa fakturanummer som null och tilldela olika nummer.
+      const locked = await tx.$queryRaw<{ fakturanummer: number | null }[]>`
+        SELECT "fakturanummer" FROM job
+        WHERE id = ${jobId} AND "companyId" = ${company.id}
+        FOR UPDATE
+      `;
+      if (locked.length === 0) throw new Error("Jobb hittades inte");
+      if (locked[0].fakturanummer != null) return locked[0].fakturanummer;
 
       // Atomärt: låser raden och returnerar gamla värdet i en enda SQL-sats,
       // vilket förhindrar race conditions vid parallella anrop.
@@ -774,8 +821,21 @@ export async function reserverFakturanummer(
 }
 
 export async function deleteUploadedImage(key: string) {
-  const ctx = await requireSession();
+  const ctx = await requireCompany();
   if ("error" in ctx) return ctx;
+  const { company } = ctx;
+
+  // Om nyckeln redan är sparad som en jobbild måste den tillhöra det egna
+  // företaget – annars går det inte att radera. Nyuppladdade bilder som
+  // ännu inte sparats på ett jobb finns inte i tabellen och tillåts, eftersom
+  // nyckeln bara kan komma från den inloggade sessionens egen uppladdning.
+  const existingImage = await prisma.jobImage.findFirst({
+    where: { key },
+    select: { job: { select: { companyId: true } } },
+  });
+  if (existingImage && existingImage.job.companyId !== company.id) {
+    return { ok: false, error: "Otillåten åtgärd" };
+  }
 
   try {
     await utapi.deleteFiles(key);

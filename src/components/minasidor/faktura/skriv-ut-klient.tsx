@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import type { Job } from "@/lib/job-schema";
+import { beräknaFaktura } from "@/lib/job-schema";
 import { Button } from "@/components/ui/button";
 import { Printer } from "lucide-react";
 
@@ -34,42 +35,20 @@ type Company = {
   fakturatext: string;
 };
 
-type Summary = {
-  artiklarSum: number;
-  ovrigaSum: number;
-  arbetstidSum: number;
-  resorSum: number;
-  totalExklMoms: number;
-  totalTimmar: number;
-  totalStracka: number;
-  antalResor: number;
-  timpris: number;
-  milersattning: number;
-};
-
 interface Props {
   job: Job;
   company: Company;
-  summary: Summary;
   fakturanummer: number;
 }
 
-export default function SkrivUtKlient({
-  job,
-  company,
-  summary,
-  fakturanummer,
-}: Props) {
+export default function SkrivUtKlient({ job, company, fakturanummer }: Props) {
   const today = new Date().toLocaleDateString("sv-SE");
   const forfalloDate = new Date();
   forfalloDate.setDate(forfalloDate.getDate() + (company.forfallodagar || 30));
   const forfalloStr = forfalloDate.toLocaleDateString("sv-SE");
 
   const arFastPris = job.fastPris !== undefined && job.fastPris !== null;
-
-  const exklMoms = arFastPris ? job.fastPris! : summary.totalExklMoms;
-  const moms = exklMoms * 0.25;
-  const totalInklMoms = exklMoms + moms;
+  const { summary, exklMoms, moms, rotAvdrag, attBetala } = beräknaFaktura(job);
 
   const kund = job.customer;
   const kundNamn = kund
@@ -409,7 +388,7 @@ export default function SkrivUtKlient({
                   kr
                 </td>
               </tr>
-              {job.rotAvdrag && summary.arbetstidSum > 0 && (
+              {rotAvdrag > 0 && (
                 <tr className="moms-rad">
                   <td>
                     ROT-avdrag 30% (av{" "}
@@ -420,12 +399,9 @@ export default function SkrivUtKlient({
                   </td>
                   <td style={{ color: "#dc2626" }}>
                     −
-                    {(summary.arbetstidSum * 1.25 * 0.3).toLocaleString(
-                      "sv-SE",
-                      {
-                        minimumFractionDigits: 2,
-                      },
-                    )}{" "}
+                    {rotAvdrag.toLocaleString("sv-SE", {
+                      minimumFractionDigits: 2,
+                    })}{" "}
                     kr
                   </td>
                 </tr>
@@ -433,10 +409,9 @@ export default function SkrivUtKlient({
               <tr className="total-rad">
                 <td>Att betala</td>
                 <td>
-                  {(job.rotAvdrag && summary.arbetstidSum > 0
-                    ? totalInklMoms - summary.arbetstidSum * 1.25 * 0.3
-                    : totalInklMoms
-                  ).toLocaleString("sv-SE", { minimumFractionDigits: 2 })}{" "}
+                  {attBetala.toLocaleString("sv-SE", {
+                    minimumFractionDigits: 2,
+                  })}{" "}
                   kr
                 </td>
               </tr>

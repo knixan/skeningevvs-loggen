@@ -16,6 +16,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Skeningevvs-loggen",
   description: "Personlig loggbok",
+  appleWebApp: {
+    capable: true,
+    title: "Skeninge VVS",
+    statusBarStyle: "default",
+  },
 };
 
 export default function RootLayout({

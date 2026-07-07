@@ -61,7 +61,13 @@ interface Props {
   customers?: Customer[];
 }
 
-const idag = () => new Date().toISOString().slice(0, 10);
+const idag = () => {
+  const nu = new Date();
+  const ar = nu.getFullYear();
+  const manad = String(nu.getMonth() + 1).padStart(2, "0");
+  const dag = String(nu.getDate()).padStart(2, "0");
+  return `${ar}-${manad}-${dag}`;
+};
 
 const tomDefaults: JobInput = {
   customerId: undefined,
@@ -134,6 +140,13 @@ export default function JobForm({
   const [bilder, setBilder] = useState<{ url: string; key: string }[]>(
     defaultValues?.bilder ?? [],
   );
+  // Nycklar som redan var sparade på jobbet när formuläret öppnades. Dessa
+  // rensas från UploadThing av updateJob när formuläret sparas (precis som
+  // alla andra fält) – bara nyligen uppladdade, ännu osparade bilder som tas
+  // bort raderas direkt, eftersom det annars aldrig städas upp.
+  const persistedBildKeysRef = useRef(
+    new Set((defaultValues?.bilder ?? []).map((b) => b.key)),
+  );
   const [laddarUpp, setLaddarUpp] = useState(false);
   const [valdBild, setValdBild] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -160,6 +173,14 @@ export default function JobForm({
 
   async function taBortBild(key: string) {
     setBilder((prev) => prev.filter((b) => b.key !== key));
+
+    // Bilder som redan fanns sparade på jobbet rensas från UploadThing när
+    // formuläret sparas (se updateJob) – precis som alla andra fält, så att
+    // en avbruten redigering inte lämnar en trasig bildreferens i databasen.
+    // En nyligen uppladdad bild som tas bort innan sparning har ingen annan
+    // städning, så den raderas direkt.
+    if (persistedBildKeysRef.current.has(key)) return;
+
     const result = await deleteUploadedImage(key);
     if (!result.ok) {
       toast.error("Kunde inte radera bilden från lagringen.");
@@ -540,7 +561,8 @@ export default function JobForm({
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-xs text-muted-foreground">
-            T.ex. förbrukningsmaterial, bortforsling, hyrd utrustning, parkeringskostnad.
+            T.ex. förbrukningsmaterial, bortforsling, hyrd utrustning,
+            parkeringskostnad.
           </p>
           {ovrigaKostnader.fields.length > 0 && (
             <div className="hidden sm:grid sm:grid-cols-12 gap-2 text-xs font-medium text-muted-foreground px-1">

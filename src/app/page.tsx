@@ -11,7 +11,7 @@ export default function Home() {
         </h1>
 
         <Image
-          src="/skeningevvs-faktura-logga.png"
+          src="/skeningevvs-frontbuss.png"
           alt="KnegarLoggen"
           width={300}
           height={300}

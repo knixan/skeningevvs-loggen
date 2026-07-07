@@ -169,3 +169,20 @@ export function beräknaSummering(job: JobInput) {
     totalExklMoms,
   };
 }
+
+// Delad fakturaberäkning (moms, ROT-avdrag, att betala) så att PDF:en och
+// utskriftsvyn alltid visar samma summor för samma jobb.
+export function beräknaFaktura(job: JobInput) {
+  const summary = beräknaSummering(job);
+
+  const exklMoms = job.fastPris != null ? job.fastPris : summary.totalExklMoms;
+  const moms = exklMoms * 0.25;
+  const totalInklMoms = exklMoms + moms;
+  const rotAvdrag =
+    job.rotAvdrag && summary.arbetstidSum > 0
+      ? summary.arbetstidSum * 1.25 * 0.3
+      : 0;
+  const attBetala = totalInklMoms - rotAvdrag;
+
+  return { summary, exklMoms, moms, totalInklMoms, rotAvdrag, attBetala };
+}

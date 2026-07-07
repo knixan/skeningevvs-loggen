@@ -7,7 +7,7 @@ import {
   StyleSheet,
 } from "@react-pdf/renderer";
 import type { Job, CompanyInput } from "@/lib/job-schema";
-import { beräknaSummering } from "@/lib/job-schema";
+import { beräknaFaktura } from "@/lib/job-schema";
 
 export type PdfCompany = CompanyInput & { logoUrl?: string };
 
@@ -133,20 +133,11 @@ export function FakturaPdf({
   company: PdfCompany;
   fakturanummer: number;
 }) {
-  const summary = beräknaSummering(job);
+  const { summary, exklMoms, moms, rotAvdrag, attBetala } = beräknaFaktura(job);
   const today = new Date().toLocaleDateString("sv-SE");
   const forfalloDate = new Date();
   forfalloDate.setDate(forfalloDate.getDate() + (company.forfallodagar ?? 30));
   const forfalloStr = forfalloDate.toLocaleDateString("sv-SE");
-
-  const exklMoms = job.fastPris != null ? job.fastPris : summary.totalExklMoms;
-  const moms = exklMoms * 0.25;
-  const totalInklMoms = exklMoms + moms;
-  const rotAvdrag =
-    job.rotAvdrag && summary.arbetstidSum > 0
-      ? summary.arbetstidSum * 1.25 * 0.3
-      : 0;
-  const attBetala = totalInklMoms - rotAvdrag;
 
   const arFastPris = job.fastPris != null;
 

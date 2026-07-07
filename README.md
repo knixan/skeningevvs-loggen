@@ -51,13 +51,13 @@ npm run dev
 
 ## Skript
 
-| Kommando            | Beskrivning                              |
-| -------------------- | ----------------------------------------- |
-| `npm run dev`         | Startar dev-servern (Turbopack)           |
-| `npm run build`       | Genererar Prisma-klienten och bygger appen |
-| `npm run start`       | Startar den byggda appen                  |
-| `npm run lint`        | Kör ESLint                                |
-| `npm run db:migrate`  | Kör Prisma-migreringar mot databasen      |
+| Kommando             | Beskrivning                                |
+| -------------------- | ------------------------------------------ |
+| `npm run dev`        | Startar dev-servern (Turbopack)            |
+| `npm run build`      | Genererar Prisma-klienten och bygger appen |
+| `npm run start`      | Startar den byggda appen                   |
+| `npm run lint`       | Kör ESLint                                 |
+| `npm run db:migrate` | Kör Prisma-migreringar mot databasen       |
 
 ## Struktur
 
