@@ -14,6 +14,7 @@ import {
   Trash2,
   Package,
   Tag,
+  Hash,
   Store,
   Layers2,
   Receipt,
@@ -431,9 +432,13 @@ export default function JobForm({
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="hidden sm:grid sm:grid-cols-12 gap-2 text-xs font-medium text-muted-foreground px-1">
-            <div className="col-span-3 flex items-center gap-1.5">
+            <div className="col-span-2 flex items-center gap-1.5">
               <Tag className="h-3.5 w-3.5" />
               Artikelnamn
+            </div>
+            <div className="col-span-2 flex items-center gap-1.5">
+              <Hash className="h-3.5 w-3.5" />
+              Artikelnummer
             </div>
             <div className="col-span-2 flex items-center gap-1.5">
               <Store className="h-3.5 w-3.5" />
@@ -455,7 +460,7 @@ export default function JobForm({
           </div>
           {artiklar.fields.map((field, i) => (
             <div key={field.id} className="grid grid-cols-12 gap-2 items-start">
-              <div className="col-span-12 sm:col-span-3 space-y-1">
+              <div className="col-span-12 sm:col-span-2 space-y-1">
                 <Label className="text-xs text-muted-foreground sm:hidden flex items-center gap-1">
                   <Tag className="h-3 w-3" />
                   Artikelnamn
@@ -469,6 +474,16 @@ export default function JobForm({
                     {errors.artiklar[i]?.namn?.message}
                   </p>
                 )}
+              </div>
+              <div className="col-span-12 sm:col-span-2 space-y-1">
+                <Label className="text-xs text-muted-foreground sm:hidden flex items-center gap-1">
+                  <Hash className="h-3 w-3" />
+                  Artikelnummer
+                </Label>
+                <Input
+                  {...register(`artiklar.${i}.artikelnr`)}
+                  placeholder="Artikelnummer"
+                />
               </div>
               <div className="col-span-12 sm:col-span-2 space-y-1">
                 <Label className="text-xs text-muted-foreground sm:hidden flex items-center gap-1">
