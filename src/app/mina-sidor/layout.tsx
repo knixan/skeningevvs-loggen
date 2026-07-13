@@ -14,11 +14,11 @@ export default function MinaSidorLayout({
       <TopBar />
       <div className="flex min-w-0 flex-1">
         <MinaSidorSidebar />
-        <div className="flex min-w-0 flex-1 flex-col">
-          <MinaSidorMobileNav />
+        <div className="flex min-w-0 flex-1 flex-col pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
           {children}
         </div>
       </div>
+      <MinaSidorMobileNav />
     </div>
   );
 }

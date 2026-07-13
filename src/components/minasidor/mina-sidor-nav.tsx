@@ -2,23 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
-import {
-  LayoutDashboard,
-  Plus,
-  Users,
-  Building2,
-  Settings,
-  Menu,
-  X,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { LayoutDashboard, Plus, Users, Building2, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   {
     href: "/mina-sidor",
     label: "Mina jobb",
+    mobileLabel: "Jobb",
     icon: LayoutDashboard,
     isActive: (p: string) =>
       p === "/mina-sidor" || p.startsWith("/mina-sidor/jobb"),
@@ -26,111 +17,85 @@ const navItems = [
   {
     href: "/mina-sidor/nytt-jobb",
     label: "Nytt jobb",
+    mobileLabel: "Nytt",
     icon: Plus,
     isActive: (p: string) => p.startsWith("/mina-sidor/nytt-jobb"),
   },
   {
     href: "/mina-sidor/kunder",
     label: "Kundregister",
+    mobileLabel: "Kunder",
     icon: Users,
     isActive: (p: string) => p.startsWith("/mina-sidor/kunder"),
   },
   {
     href: "/mina-sidor/foretag",
     label: "Företagsuppgifter",
+    mobileLabel: "Företag",
     icon: Building2,
     isActive: (p: string) => p.startsWith("/mina-sidor/foretag"),
   },
   {
     href: "/mina-sidor/installningar",
     label: "Inställningar",
+    mobileLabel: "Mer",
     icon: Settings,
     isActive: (p: string) => p.startsWith("/mina-sidor/installningar"),
   },
 ];
 
-function NavLinks({
-  pathname,
-  onClick,
-}: {
-  pathname: string;
-  onClick?: () => void;
-}) {
-  return (
-    <nav className="flex flex-col gap-0.5 p-2">
-      {navItems.map(({ href, label, icon: Icon, isActive }) => (
-        <Link
-          key={href}
-          href={href}
-          onClick={onClick}
-          className={cn(
-            "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-            isActive(pathname)
-              ? "bg-muted text-foreground"
-              : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
-          )}
-        >
-          <Icon className="h-4 w-4 shrink-0" />
-          {label}
-        </Link>
-      ))}
-    </nav>
-  );
-}
-
 export function MinaSidorSidebar() {
   const pathname = usePathname();
   if (pathname.endsWith("/skriv-ut")) return null;
+
   return (
     <aside className="hidden md:flex w-52 shrink-0 flex-col border-r">
-      <div className="sticky top-4 pt-4">
-        <NavLinks pathname={pathname} />
-      </div>
+      <nav className="sticky top-4 flex flex-col gap-0.5 p-2 pt-4">
+        {navItems.map(({ href, label, icon: Icon, isActive }) => (
+          <Link
+            key={href}
+            href={href}
+            className={cn(
+              "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+              isActive(pathname)
+                ? "bg-muted text-foreground"
+                : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+            )}
+          >
+            <Icon className="h-4 w-4 shrink-0" />
+            {label}
+          </Link>
+        ))}
+      </nav>
     </aside>
   );
 }
 
 export function MinaSidorMobileNav() {
   const pathname = usePathname();
-  const [open, setOpen] = useState(false);
-
   if (pathname.endsWith("/skriv-ut")) return null;
 
   return (
-    <>
-      <div className="md:hidden sticky top-0 z-30 flex items-center border-b bg-background px-4 py-2">
-        <Button variant="ghost" size="sm" onClick={() => setOpen(true)}>
-          <Menu className="h-4 w-4 mr-2" />
-          Meny
-        </Button>
-      </div>
-
-      {open && (
-        <div
-          className="fixed inset-0 z-40 bg-black/50"
-          onClick={() => setOpen(false)}
-        />
-      )}
-
-      <div
-        className={cn(
-          "fixed top-0 left-0 z-50 h-full w-64 bg-background shadow-xl transition-transform duration-200",
-          open ? "translate-x-0" : "-translate-x-full",
-        )}
-      >
-        <div className="flex items-center justify-between border-b px-4 py-3">
-          <span className="font-semibold text-sm">Mina sidor</span>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setOpen(false)}
-            aria-label="Stäng meny"
+    <nav
+      className="fixed inset-x-0 bottom-0 z-30 flex border-t bg-background md:hidden"
+      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+    >
+      {navItems.map(({ href, mobileLabel, icon: Icon, isActive }) => {
+        const active = isActive(pathname);
+        return (
+          <Link
+            key={href}
+            href={href}
+            className={cn(
+              "flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-medium transition-colors",
+              active ? "text-foreground" : "text-muted-foreground",
+            )}
           >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-        <NavLinks pathname={pathname} onClick={() => setOpen(false)} />
-      </div>
-    </>
+            <Icon className="h-5 w-5" strokeWidth={active ? 2.5 : 2} />
+            {mobileLabel}
+          </Link>
+        );
+      })}
+    </nav>
   );
 }
