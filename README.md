@@ -1,114 +1,114 @@
 # Skeningevvs-loggen
 
-Personlig jobb-, kund- och fakturaloggbok för en ensam VVS-firma. Byggd för en enda användare — ingen multi-tenant, inget team, ingen prenumeration.
+Personal job, customer, and invoice log for a one-person plumbing/HVAC (VVS) business. Built for a single user — no multi-tenancy, no team, no subscription.
 
-## Skärmdumpar
+## Screenshots
 
 <table>
   <tr>
     <td align="center" width="33%">
-      <img src="public/mockup/startsida.png" alt="Startsida" width="100%" /><br />
-      <sub>Startsida</sub>
+      <img src="public/mockup/startsida.png" alt="Home page" width="100%" /><br />
+      <sub>Home page</sub>
     </td>
     <td align="center" width="33%">
-      <img src="public/mockup/minajobb.png" alt="Mina jobb" width="100%" /><br />
-      <sub>Mina jobb</sub>
+      <img src="public/mockup/minajobb.png" alt="My jobs" width="100%" /><br />
+      <sub>My jobs</sub>
     </td>
     <td align="center" width="33%">
-      <img src="public/mockup/oversikt.png" alt="Jobböversikt" width="100%" /><br />
-      <sub>Jobböversikt</sub>
+      <img src="public/mockup/oversikt.png" alt="Job overview" width="100%" /><br />
+      <sub>Job overview</sub>
     </td>
   </tr>
   <tr>
     <td align="center" width="33%">
-      <img src="public/mockup/kunder.png" alt="Kundregister" width="100%" /><br />
-      <sub>Kundregister</sub>
+      <img src="public/mockup/kunder.png" alt="Customer register" width="100%" /><br />
+      <sub>Customer register</sub>
     </td>
     <td align="center" width="33%">
-      <img src="public/mockup/foretag.png" alt="Företagsuppgifter" width="100%" /><br />
-      <sub>Företagsuppgifter</sub>
+      <img src="public/mockup/foretag.png" alt="Company details" width="100%" /><br />
+      <sub>Company details</sub>
     </td>
     <td align="center" width="33%">
-      <img src="public/mockup/faktura.png" alt="Faktura" width="100%" /><br />
-      <sub>Faktura</sub>
+      <img src="public/mockup/faktura.png" alt="Invoice" width="100%" /><br />
+      <sub>Invoice</sub>
     </td>
   </tr>
 </table>
 
-## Funktioner
+## Features
 
-- **Jobb**: registrera artiklar, övriga kostnader, resor, arbetstid, bilder, fast pris eller löpande pris, status (ej påbörjat / pågående / utfört), fakturerings- och betalningsstatus
-- **Kunder**: privatpersoner och företag, med ROT-uppgifter (fastighetsbeteckning, lägenhetsnummer, brf)
-- **Fakturor**: skriv ut eller ladda ner som PDF, med löpande fakturanummer, ROT-avdrag, F-skatt och betalningsuppgifter (bankgiro/plusgiro/swish) — inget e-postutskick
-- **Företagsuppgifter**: logotyp, kontaktuppgifter, fakturainställningar
-- **Bilduppladdning** för jobbfoton och logotyp via UploadThing
-- **Inloggning**: e-post + lösenord, ingen e-postverifiering. Endast ett konto kan registreras.
+- **Jobs**: log articles, miscellaneous costs, trips, work hours, photos, fixed or itemized pricing, status (not started / in progress / done), invoicing and payment status
+- **Customers**: private individuals and companies, with ROT deduction details (property designation, apartment number, housing association)
+- **Invoices**: print or download as PDF, with a running invoice number, ROT tax deduction, F-tax status, and payment details (bankgiro/plusgiro/swish) — no email sending
+- **Company details**: logo, contact info, invoice settings
+- **Image uploads** for job photos and company logo via UploadThing
+- **Login**: email + password, no email verification. Only one account can ever be registered.
 
-## Teknikstack
+## Tech stack
 
 - [Next.js 16](https://nextjs.org/docs) (App Router, Turbopack) + React 19
 - [Tailwind CSS 4](https://tailwindcss.com/) + [shadcn/ui](https://ui.shadcn.com/)
-- [Prisma](https://www.prisma.io/) + PostgreSQL (t.ex. [Neon](https://neon.tech/))
-- [better-auth](https://www.better-auth.com/) för autentisering
-- [react-hook-form](https://react-hook-form.com/) + [zod](https://zod.dev/) för formulär och validering
-- [@react-pdf/renderer](https://react-pdf.org/) för fakturagenerering
-- [UploadThing](https://uploadthing.com/) för filuppladdning
+- [Prisma](https://www.prisma.io/) + PostgreSQL (e.g. [Neon](https://neon.tech/))
+- [better-auth](https://www.better-auth.com/) for authentication
+- [react-hook-form](https://react-hook-form.com/) + [zod](https://zod.dev/) for forms and validation
+- [@react-pdf/renderer](https://react-pdf.org/) for invoice generation
+- [UploadThing](https://uploadthing.com/) for file uploads
 
-## Kom igång
+## Getting started
 
-### 1. Miljövariabler
+### 1. Environment variables
 
-Kopiera `.env.example` till `.env` och fyll i:
+Copy `.env.example` to `.env` and fill in:
 
 ```bash
-DATABASE_URL=       # Postgres-anslutning (t.ex. Neon)
-BETTER_AUTH_SECRET=  # slumpad hemlig nyckel, minst 32 tecken (openssl rand -base64 32)
-BETTER_AUTH_URL=     # https://din-domän, eller http://localhost:3000 lokalt
-UPLOADTHING_TOKEN=   # från https://uploadthing.com/dashboard
+DATABASE_URL=        # Postgres connection string (e.g. Neon)
+BETTER_AUTH_SECRET=  # random secret key, at least 32 characters (openssl rand -base64 32)
+BETTER_AUTH_URL=     # https://your-domain, or http://localhost:3000 locally
+UPLOADTHING_TOKEN=   # from https://uploadthing.com/dashboard
 ```
 
-### 2. Installera och migrera databasen
+### 2. Install dependencies and migrate the database
 
 ```bash
 npm install
 npm run db:migrate
 ```
 
-### 3. Starta dev-servern
+### 3. Start the dev server
 
 ```bash
 npm run dev
 ```
 
-Öppna [http://localhost:3000](http://localhost:3000), gå till `/registrera` och skapa ditt (enda) konto.
+Open [http://localhost:3000](http://localhost:3000), go to `/registrera` and create your (only) account.
 
-## Skript
+## Scripts
 
-| Kommando             | Beskrivning                                |
-| -------------------- | ------------------------------------------ |
-| `npm run dev`        | Startar dev-servern (Turbopack)            |
-| `npm run build`      | Genererar Prisma-klienten och bygger appen |
-| `npm run start`      | Startar den byggda appen                   |
-| `npm run lint`       | Kör ESLint                                 |
-| `npm run db:migrate` | Kör Prisma-migreringar mot databasen       |
+| Command               | Description                              |
+| --------------------- | ----------------------------------------- |
+| `npm run dev`          | Starts the dev server (Turbopack)         |
+| `npm run build`        | Generates the Prisma client and builds the app |
+| `npm run start`        | Starts the built app                      |
+| `npm run lint`         | Runs ESLint                               |
+| `npm run db:migrate`   | Runs Prisma migrations against the database |
 
-## Struktur
+## Structure
 
 ```
 src/
 ├── app/
-│   ├── logga-in/, registrera/     # Inloggning och registrering
-│   ├── api/auth/, api/uploadthing/ # better-auth- och UploadThing-handlers
-│   └── mina-sidor/                 # Skyddat område: jobb, kunder, företag, inställningar
+│   ├── logga-in/, registrera/     # Login and registration
+│   ├── api/auth/, api/uploadthing/ # better-auth and UploadThing handlers
+│   └── mina-sidor/                 # Protected area: jobs, customers, company, settings
 ├── components/
-│   ├── ui/                         # shadcn/ui-komponenter
-│   └── minasidor/                  # Affärslogik-UI (jobb, kunder, faktura, företag, översikt)
+│   ├── ui/                         # shadcn/ui components
+│   └── minasidor/                  # Business-logic UI (jobs, customers, invoices, company, overview)
 ├── lib/                            # auth, prisma, job-actions, job-schema, uploadthing, env
-└── proxy.ts                        # Route-skydd (måste ligga i src/, inte projektroten)
+└── proxy.ts                        # Route protection (must live in src/, not the project root)
 prisma/
-└── schema.prisma                   # User/Session/Account (auth) + Company/Customer/Job (verksamhet)
+└── schema.prisma                   # User/Session/Account (auth) + Company/Customer/Job (business data)
 ```
 
-## Driftsättning
+## Deployment
 
-Appen är byggd för att köras på Vercel med en extern Postgres-databas (t.ex. Neon). Sätt samma miljövariabler som ovan i projektets inställningar, med `BETTER_AUTH_URL` satt till produktionens `https://`-domän.
+The app is built to run on Vercel with an external Postgres database (e.g. Neon). Set the same environment variables as above in the project settings, with `BETTER_AUTH_URL` set to the production `https://` domain.
