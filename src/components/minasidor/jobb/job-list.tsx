@@ -53,7 +53,7 @@ export default function JobList({ jobs, onEdit, onDelete }: Props) {
           >
             <CardContent className="flex flex-col gap-3 pt-5 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0 space-y-1">
-                <div className="truncate text-lg font-bold">
+                <div className="truncate text-lg text-blue-700 font-bold">
                   {customerDisplayName || "Jobb utan kundnamn"}
                 </div>
                 {customerDisplayName && (

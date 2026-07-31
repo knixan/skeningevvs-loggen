@@ -2,6 +2,39 @@
 
 Personlig jobb-, kund- och fakturaloggbok för en ensam VVS-firma. Byggd för en enda användare — ingen multi-tenant, inget team, ingen prenumeration.
 
+## Skärmdumpar
+
+<table>
+  <tr>
+    <td align="center" width="33%">
+      <img src="public/mockup/startsida.png" alt="Startsida" width="100%" /><br />
+      <sub>Startsida</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="public/mockup/minajobb.png" alt="Mina jobb" width="100%" /><br />
+      <sub>Mina jobb</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="public/mockup/oversikt.png" alt="Jobböversikt" width="100%" /><br />
+      <sub>Jobböversikt</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="33%">
+      <img src="public/mockup/kunder.png" alt="Kundregister" width="100%" /><br />
+      <sub>Kundregister</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="public/mockup/foretag.png" alt="Företagsuppgifter" width="100%" /><br />
+      <sub>Företagsuppgifter</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="public/mockup/faktura.png" alt="Faktura" width="100%" /><br />
+      <sub>Faktura</sub>
+    </td>
+  </tr>
+</table>
+
 ## Funktioner
 
 - **Jobb**: registrera artiklar, övriga kostnader, resor, arbetstid, bilder, fast pris eller löpande pris, status (ej påbörjat / pågående / utfört), fakturerings- och betalningsstatus
