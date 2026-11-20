@@ -7,7 +7,15 @@ import {
   StyleSheet,
 } from "@react-pdf/renderer";
 import type { Job, CompanyInput } from "@/lib/job-schema";
-import { beräknaFaktura, formateraAntal, kundensNamn } from "@/lib/job-schema";
+import {
+  beräknaFaktura,
+  formateraAntal,
+  formateraTal,
+  kundensNamn,
+  MOMS_PROCENT,
+  ROT_PROCENT,
+  rotBostad,
+} from "@/lib/job-schema";
 
 export type PdfCompany = CompanyInput & { logoUrl?: string };
 
@@ -133,7 +141,15 @@ export function FakturaPdf({
   company: PdfCompany;
   fakturanummer: number;
 }) {
-  const { summary, exklMoms, moms, rotAvdrag, attBetala } = beräknaFaktura(job);
+  const {
+    summary,
+    exklMoms,
+    moms,
+    arbetskostnad,
+    rotUnderlag,
+    rotAvdrag,
+    attBetala,
+  } = beräknaFaktura(job);
   const today = new Date().toLocaleDateString("sv-SE");
   const forfalloDate = new Date();
   forfalloDate.setDate(forfalloDate.getDate() + (company.forfallodagar ?? 30));
@@ -143,6 +159,7 @@ export function FakturaPdf({
 
   const kund = job.customer;
   const kundNamn = kundensNamn(kund) || "Okänd kund";
+  const bostad = rotBostad(kund);
 
   const fakturaRader: [string, string, boolean?][] = [
     ["Fakturanummer", String(fakturanummer), true],
@@ -217,11 +234,8 @@ export function FakturaPdf({
           {kund?.personnummer ? (
             <Text style={S.kundSub}>Personnummer: {kund.personnummer}</Text>
           ) : null}
-          {job.rotAvdrag && kund?.fastighetsbeteckning ? (
-            <Text style={S.kundSub}>
-              ROT-avdrag · Fastighet: {kund.fastighetsbeteckning}
-              {kund.lagenhetsnummer ? ` · Lgh: ${kund.lagenhetsnummer}` : ""}
-            </Text>
+          {job.rotAvdrag && bostad ? (
+            <Text style={S.kundSub}>ROT-avdrag · {bostad}</Text>
           ) : null}
         </View>
 
@@ -276,7 +290,7 @@ export function FakturaPdf({
               <View style={S.row}>
                 <Text style={[S.tdDesc, { flex: 1 }]}>Arbetstid</Text>
                 <Text style={[S.tdRight, { width: 44 }]}>
-                  {summary.totalTimmar} h
+                  {formateraTal(summary.totalTimmar)} h
                 </Text>
                 <Text style={[S.tdRight, { width: 62 }]}>
                   {kr(summary.timpris)}/h
@@ -293,7 +307,7 @@ export function FakturaPdf({
                   Resor / milersättning
                 </Text>
                 <Text style={[S.tdRight, { width: 44 }]}>
-                  {summary.totalStracka} km
+                  {formateraTal(summary.totalStracka)} km
                 </Text>
                 <Text style={[S.tdRight, { width: 62 }]}>
                   {kr(summary.milersattning)}/km
@@ -326,15 +340,27 @@ export function FakturaPdf({
               </Text>
               <Text style={S.summValue}>{kr(exklMoms)}</Text>
             </View>
+            {/* Arbetsdelen av ett fast pris – ROT räknas bara på den */}
+            {arFastPris && job.fastPrisArbete != null && (
+              <View style={S.summRow}>
+                <Text style={[S.summLabel, S.summMuted]}>
+                  varav arbetskostnad exkl. moms
+                </Text>
+                <Text style={[S.summValue, S.summMuted]}>
+                  {kr(arbetskostnad)}
+                </Text>
+              </View>
+            )}
             <View style={S.summRow}>
-              <Text style={[S.summLabel, S.summMuted]}>Moms 25%</Text>
+              <Text style={[S.summLabel, S.summMuted]}>
+                Moms {MOMS_PROCENT}%
+              </Text>
               <Text style={[S.summValue, S.summMuted]}>{kr(moms)}</Text>
             </View>
             {rotAvdrag > 0 && (
               <View style={S.summRow}>
                 <Text style={[S.summLabel, S.summMuted]}>
-                  ROT-avdrag 30% (av {kr(summary.arbetstidSum * 1.25)} inkl.
-                  moms)*
+                  ROT-avdrag {ROT_PROCENT}% (av {kr(rotUnderlag)} inkl. moms)*
                 </Text>
                 <Text style={[S.summValue, S.summRot]}>−{kr(rotAvdrag)}</Text>
               </View>
@@ -381,8 +407,8 @@ export function FakturaPdf({
         )}
         {job.rotAvdrag && (
           <Text style={S.fskatt}>
-            * ROT-avdrag: Avser 30% av arbetskostnad inkl. moms. Hantverkaren
-            ansöker om utbetalning hos Skatteverket.
+            * ROT-avdrag: Avser {ROT_PROCENT}% av arbetskostnad inkl. moms.
+            Hantverkaren ansöker om utbetalning hos Skatteverket.
           </Text>
         )}
       </Page>

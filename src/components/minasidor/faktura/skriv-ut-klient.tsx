@@ -8,7 +8,6 @@ import type { Job } from "@/lib/job-schema";
 import {
   beräknaFaktura,
   formateraAntal,
-  formateraKr,
   formateraTal,
   kundensNamn,
   MOMS_PROCENT,
