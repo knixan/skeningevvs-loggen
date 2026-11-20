@@ -40,6 +40,7 @@ Personal job, customer, and invoice log for a one-person plumbing/HVAC (VVS) bus
 - **Jobs**: log articles, miscellaneous costs, trips, work hours, photos, fixed or itemized pricing, status (not started / in progress / done), invoicing and payment status
 - **Customers**: private individuals and companies, with ROT deduction details (property designation, apartment number, housing association)
 - **Invoices**: print or download as PDF, with a running invoice number, ROT tax deduction, F-tax status, and payment details (bankgiro/plusgiro/swish) — no email sending
+- **Quotes**: price a job before it is ordered (materials, estimated hours and mileage, or a fixed price, with preliminary ROT deduction), print or download as PDF with its own quote number and validity date, and turn an accepted quote into a job
 - **Company details**: logo, contact info, invoice settings
 - **Image uploads** for job photos and company logo via UploadThing
 - **Login**: email + password, no email verification. Only one account can ever be registered.
@@ -99,14 +100,14 @@ src/
 ├── app/
 │   ├── logga-in/, registrera/     # Login and registration
 │   ├── api/auth/, api/uploadthing/ # better-auth and UploadThing handlers
-│   └── mina-sidor/                 # Protected area: jobs, customers, company, settings
+│   └── mina-sidor/                 # Protected area: jobs, quotes, customers, company, settings
 ├── components/
 │   ├── ui/                         # shadcn/ui components
-│   └── minasidor/                  # Business-logic UI (jobs, customers, invoices, company, overview)
+│   └── minasidor/                  # Business-logic UI (jobs, quotes, customers, invoices, company, overview)
 ├── lib/                            # auth, prisma, job-actions, job-schema, uploadthing, env
 └── proxy.ts                        # Route protection (must live in src/, not the project root)
 prisma/
-└── schema.prisma                   # User/Session/Account (auth) + Company/Customer/Job (business data)
+└── schema.prisma                   # User/Session/Account (auth) + Company/Customer/Job/Offert (business data)
 ```
 
 ## Deployment

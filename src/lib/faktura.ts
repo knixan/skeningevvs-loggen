@@ -6,6 +6,7 @@ import {
   ROT_PROCENT,
   rotBostad,
   type CompanyInput,
+  type Customer,
   type FakturaRad,
   type Job,
 } from "./job-schema";
@@ -56,20 +57,7 @@ export type FakturaData = {
     fakturatext: string;
   };
   /** null bara i en förhandsgranskning – en faktura kan inte utfärdas utan kund */
-  kund: {
-    typ: "privat" | "foretag";
-    /** Redan framtaget med kundensNamn() */
-    namn: string;
-    kontaktperson: string;
-    adress: string;
-    postnummer: string;
-    ort: string;
-    epost: string;
-    telefon: string;
-    personnummer: string;
-    /** rotBostad(), t.ex. "Fastighet: Berga 1:23" */
-    rotBostad: string;
-  } | null;
+  kund: Mottagare | null;
   rotAvdrag: boolean;
   fastPris: boolean;
   /** Fast pris där arbetsdelen är angiven – visas som "varav arbetskostnad" */
@@ -87,6 +75,38 @@ export type FakturaData = {
   };
   satser: { momsProcent: number; rotProcent: number };
 };
+
+/** Mottagaren av en faktura eller offert, som den står på papperet. */
+export type Mottagare = {
+  typ: "privat" | "foretag";
+  /** Redan framtaget med kundensNamn() */
+  namn: string;
+  kontaktperson: string;
+  adress: string;
+  postnummer: string;
+  ort: string;
+  epost: string;
+  telefon: string;
+  personnummer: string;
+  /** rotBostad(), t.ex. "Fastighet: Berga 1:23" */
+  rotBostad: string;
+};
+
+export function mottagare(kund: Customer | null | undefined): Mottagare | null {
+  if (!kund) return null;
+  return {
+    typ: kund.typ,
+    namn: kundensNamn(kund),
+    kontaktperson: kund.typ === "foretag" ? (kund.kontaktperson ?? "") : "",
+    adress: kund.adress ?? "",
+    postnummer: kund.postnummer ?? "",
+    ort: kund.ort ?? "",
+    epost: kund.epost ?? "",
+    telefon: kund.telefon ?? "",
+    personnummer: kund.personnummer ?? "",
+    rotBostad: rotBostad(kund),
+  };
+}
 
 /** Belopp på fakturan, alltid med två decimaler: "1 234,50 kr". */
 export function fakturaKr(n: number): string {
@@ -112,7 +132,9 @@ export function fakturaAPris(rad: FakturaRad): string {
  * Säljarens momsregistreringsnummer. Saknas det räknas det fram ur
  * organisationsnumret (SE + org.nr + 01).
  */
-export function saljarensMomsNummer(saljare: FakturaData["saljare"]): string {
+export function saljarensMomsNummer(
+  saljare: Pick<FakturaData["saljare"], "momsNummer" | "orgNummer">,
+): string {
   return (
     saljare.momsNummer || `SE${saljare.orgNummer.replace("-", "")}01`
   );
@@ -130,7 +152,6 @@ export function skapaFakturaData(
   }: { fakturanummer: number | null; fakturadatum: string },
 ): FakturaData {
   const f = beräknaFaktura(job);
-  const kund = job.customer;
   const arFastPris = job.fastPris != null;
 
   return {
@@ -155,20 +176,7 @@ export function skapaFakturaData(
       drojsmalsranta: foretag.drojsmalsranta,
       fakturatext: foretag.fakturatext,
     },
-    kund: kund
-      ? {
-          typ: kund.typ,
-          namn: kundensNamn(kund),
-          kontaktperson: kund.typ === "foretag" ? (kund.kontaktperson ?? "") : "",
-          adress: kund.adress ?? "",
-          postnummer: kund.postnummer ?? "",
-          ort: kund.ort ?? "",
-          epost: kund.epost ?? "",
-          telefon: kund.telefon ?? "",
-          personnummer: kund.personnummer ?? "",
-          rotBostad: rotBostad(kund),
-        }
-      : null,
+    kund: mottagare(job.customer),
     rotAvdrag: job.rotAvdrag,
     fastPris: arFastPris,
     visaArbetskostnad: arFastPris && job.fastPrisArbete != null,

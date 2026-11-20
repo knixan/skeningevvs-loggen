@@ -107,6 +107,9 @@ model Company {
   drojsmalsranta     Float  @default(0)
   fakturatext        String @default("")
 
+  // Offerter har en egen nummerserie, skild från fakturanumren
+  nastaOffertnummer Int @default(1)
+
   // Ahlsell-prislista. Bara artiklar med ahlsellImportId lika med det här
   // fältet är aktiva – en inläsning som avbryts halvvägs syns alltså aldrig.
   ahlsellImportId       String?
@@ -122,6 +125,7 @@ model Company {
   jobs            Job[]
   customers       Customer[]
   fakturor        Faktura[]
+  offerter        Offert[]
   ahlsellArtiklar AhlsellArtikel[]
 
   @@map("company")
@@ -158,6 +162,7 @@ model Customer {
   company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   jobs     Job[]
   fakturor Faktura[]
+  offerter Offert[]
 
   @@index([companyId])
   @@map("customer")
@@ -183,9 +188,9 @@ model Job {
   fakturanummer Int?
 
   // Prissättning
-  timpris       Float  @default(0)
-  milersattning Float  @default(0)
-  fastPris      Float?
+  timpris        Float  @default(0)
+  milersattning  Float  @default(0)
+  fastPris       Float?
   // Hur mycket av fastPris som är arbete (exkl. moms) – ROT räknas på den
   fastPrisArbete Float?
 
@@ -209,6 +214,8 @@ model Job {
   images          JobImage[]
   ovrigaKostnader OvrigKostnad[]
   faktura         Faktura?
+  // Offerten som jobbet skapades från ("Gör om till jobb")
+  offert          Offert?
 
   // Ett fakturanummer kan aldrig delas ut två gånger (PostgreSQL tillåter
   // flera NULL, alltså flera jobb utan faktura)
@@ -252,6 +259,90 @@ model Faktura {
   @@index([companyId, fakturadatum])
   @@index([customerId])
   @@map("faktura")
+}
+
+// En offert till en kund, innan jobbet är beställt. Egen modell, så att
+// offerter aldrig blandas ihop med jobb och fakturor. Offerten kan ändras
+// fritt – den är inget bokföringsunderlag. Beloppen räknas med samma
+// beräkning som fakturan (offertPrisunderlag + beräknaFaktura).
+model Offert {
+  id           String  @id @default(cuid())
+  companyId    String
+  customerId   String?
+  // Jobbet som skapades när kunden tackade ja. Tas jobbet bort finns
+  // offerten kvar (SetNull) och kan göras om till jobb igen.
+  jobId        String? @unique
+  // Delas ut från company.nastaOffertnummer när offerten skapas
+  offertnummer Int
+  status       String  @default("utkast") // "utkast" | "skickad" | "accepterad" | "avbojd"
+
+  offertdatum DateTime @db.Date
+  giltigTill  DateTime @db.Date
+
+  rotAvdrag       Boolean @default(false)
+  timpris         Float   @default(0)
+  milersattning   Float   @default(0)
+  // Uppskattningar för priset – inte loggad tid eller körda mil
+  beraknadeTimmar Float   @default(0)
+  beraknadStracka Float   @default(0)
+  fastPris        Float?
+  // Hur mycket av fastPris som är arbete (exkl. moms) – ROT räknas på den
+  fastPrisArbete  Float?
+
+  // Visas för kunden
+  beskrivning         String @default("")
+  villkor             String @default("")
+  // Visas aldrig för kunden
+  internaAnteckningar String @default("")
+
+  skapad    DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company         Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer        Customer?       @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  job             Job?            @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  artiklar        OffertArtikel[]
+  ovrigaKostnader OffertKostnad[]
+
+  @@unique([companyId, offertnummer])
+  @@index([companyId])
+  @@index([customerId])
+  @@map("offert")
+}
+
+// Raderna byts ut i sin helhet när offerten sparas. `ordning` håller dem i
+// den ordning de skrevs in – utan ORDER BY lovar databasen ingen ordning.
+model OffertArtikel {
+  id       String @id @default(cuid())
+  offertId String
+  ordning  Int    @default(0)
+
+  namn           String
+  artikelnr      String @default("")
+  aterforsaljare String @default("")
+  inkopspris     Float  @default(0)
+  pris           Float
+  antal          Float  @default(1)
+  enhet          String @default("")
+
+  offert Offert @relation(fields: [offertId], references: [id], onDelete: Cascade)
+
+  @@index([offertId])
+  @@map("offert_artikel")
+}
+
+model OffertKostnad {
+  id       String @id @default(cuid())
+  offertId String
+  ordning  Int    @default(0)
+
+  beskrivning String
+  pris        Float  @default(0)
+
+  offert Offert @relation(fields: [offertId], references: [id], onDelete: Cascade)
+
+  @@index([offertId])
+  @@map("offert_kostnad")
 }
 
 model Article {

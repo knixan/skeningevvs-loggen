@@ -2,6 +2,11 @@ import "server-only";
 
 import type { Prisma } from "@prisma/client";
 import type { FakturaData } from "./faktura";
+import {
+  OFFERT_STATUSAR,
+  type Offert,
+  type OffertStatus,
+} from "./job-schema";
 import { prisma } from "./prisma";
 import { inloggatForetag } from "./server-hjalp";
 
@@ -206,6 +211,116 @@ export async function getJob(id: string) {
   if (!j) return null;
 
   return mapJob(j);
+}
+
+// ------------------------------------------------------------
+// Offerter
+// ------------------------------------------------------------
+
+export const OFFERT_MED_RADER = {
+  customer: true,
+  artiklar: { orderBy: { ordning: "asc" } },
+  ovrigaKostnader: { orderBy: { ordning: "asc" } },
+} satisfies Prisma.OffertInclude;
+
+type OffertWithRelations = Prisma.OffertGetPayload<{
+  include: typeof OFFERT_MED_RADER;
+}>;
+
+function offertStatus(status: string): OffertStatus {
+  return (OFFERT_STATUSAR as readonly string[]).includes(status)
+    ? (status as OffertStatus)
+    : "utkast";
+}
+
+export function mapOffert(o: OffertWithRelations): Offert {
+  return {
+    id: o.id,
+    offertnummer: o.offertnummer,
+    jobId: o.jobId ?? undefined,
+    // Tom om kunden har tagits bort – då måste en ny väljas innan offerten sparas
+    customerId: o.customerId ?? "",
+    customer: o.customer ? mapCustomer(o.customer) : null,
+    status: offertStatus(o.status),
+    offertdatum: o.offertdatum.toISOString().slice(0, 10),
+    giltigTill: o.giltigTill.toISOString().slice(0, 10),
+    rotAvdrag: o.rotAvdrag,
+    timpris: o.timpris,
+    milersattning: o.milersattning,
+    beraknadeTimmar: o.beraknadeTimmar,
+    beraknadStracka: o.beraknadStracka,
+    fastPris: o.fastPris ?? undefined,
+    fastPrisArbete: o.fastPrisArbete ?? undefined,
+    beskrivning: o.beskrivning,
+    villkor: o.villkor,
+    internaAnteckningar: o.internaAnteckningar,
+    // Raderna byts ut i sin helhet när offerten sparas – id behövs inte
+    artiklar: o.artiklar.map((a) => ({
+      namn: a.namn,
+      artikelnr: a.artikelnr,
+      aterforsaljare: a.aterforsaljare,
+      inkopspris: a.inkopspris,
+      pris: a.pris,
+      antal: a.antal,
+      enhet: a.enhet,
+    })),
+    ovrigaKostnader: o.ovrigaKostnader.map((k) => ({
+      beskrivning: k.beskrivning,
+      pris: k.pris,
+    })),
+    skapad: o.skapad.toISOString(),
+  };
+}
+
+/** Alla offerter, senaste först. En enmansfirma har inte fler än att de får plats. */
+export async function getOfferter() {
+  const company = await inloggatForetag();
+  if (!company) return [];
+
+  const offerter = await prisma.offert.findMany({
+    where: { companyId: company.id },
+    include: OFFERT_MED_RADER,
+    orderBy: { offertnummer: "desc" },
+  });
+
+  return offerter.map(mapOffert);
+}
+
+export async function getOffert(id: string) {
+  const company = await inloggatForetag();
+  if (!company) return null;
+
+  const o = await prisma.offert.findFirst({
+    where: { id, companyId: company.id },
+    include: OFFERT_MED_RADER,
+  });
+  if (!o) return null;
+
+  return mapOffert(o);
+}
+
+/**
+ * Förslag på timpris och milersättning till en ny offert: det som stod på
+ * den senaste offerten, annars på det senaste jobbet med timpris.
+ */
+export async function getSenastePriser() {
+  const company = await inloggatForetag();
+  if (!company) return { timpris: 0, milersattning: 0 };
+
+  const priser = { timpris: true, milersattning: true } as const;
+  const senaste =
+    (await prisma.offert.findFirst({
+      where: { companyId: company.id, timpris: { gt: 0 } },
+      orderBy: { skapad: "desc" },
+      select: priser,
+    })) ??
+    (await prisma.job.findFirst({
+      where: { companyId: company.id, timpris: { gt: 0 } },
+      orderBy: { skapad: "desc" },
+      select: priser,
+    }));
+
+  return senaste ?? { timpris: 0, milersattning: 0 };
 }
 
 // ------------------------------------------------------------

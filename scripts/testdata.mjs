@@ -494,10 +494,128 @@ const jobb = [
 ];
 
 // ------------------------------------------------------------
+// Offerter – alla statusar, ROT, fast pris, en som har gått ut, en till
+// företagskund och en som redan har gjorts om till jobb.
+//
+// Testofferterna har nummer från 9001 och tar inget nummer ur företagets
+// nummerserie, så att den första riktiga offerten fortfarande blir nr 1.
+// ------------------------------------------------------------
+
+const offerter = [
+  {
+    id: "golvvarme-johan",
+    nummer: 9001,
+    kund: "johan",
+    status: "skickad",
+    offertdatum: dag(-1),
+    giltigTill: dag(29),
+    rotAvdrag: true,
+    beraknadeTimmar: 22,
+    beraknadStracka: 78,
+    beskrivning:
+      "Vattenburen golvvärme i tillbyggnad ca 35 m². Läggning av golvvärmerör på isolering, ny fördelare med ställdon och anslutning till befintlig panna via ny shuntgrupp. Provtryckning och injustering.",
+    villkor:
+      "Gjutning och golvbeläggning ingår inte. Eventuella tilläggsarbeten debiteras löpande enligt timpris.",
+    internaAnteckningar: "Utan shuntgrupp blir det ca 4 800 kr billigare – kunden funderar.",
+    artiklar: [
+      { namn: "Golvvärmerör PE-RT 17 mm", aterforsaljare: "Ahlsell", inkopspris: 9.5, pris: 14, antal: 220, enhet: "M" },
+      { namn: "Golvvärmefördelare 4 kretsar", aterforsaljare: "Ahlsell", inkopspris: 2890, pris: 3790, antal: 1, enhet: "ST" },
+      { namn: "Shuntgrupp med cirkulationspump", aterforsaljare: "Ahlsell", inkopspris: 3650, pris: 4790, antal: 1, enhet: "ST" },
+      { namn: "Rumstermostat trådlös", aterforsaljare: "Ahlsell", inkopspris: 640, pris: 890, antal: 2, enhet: "ST" },
+    ],
+  },
+  {
+    id: "wc-fatima",
+    nummer: 9002,
+    kund: "fatima",
+    status: "utkast",
+    offertdatum: dag(0),
+    giltigTill: dag(30),
+    rotAvdrag: true,
+    fastPris: 6900,
+    // ROT räknas bara på arbetsdelen av det fasta priset
+    fastPrisArbete: 3400,
+    beskrivning:
+      "Byte av toalettstol. Demontering och bortforsling av gammal toalett, montering av ny golvstående toalett med mjukstängande sits och ny anslutning till avlopp och kallvatten.",
+    villkor: "Fast pris inklusive material.",
+    artiklar: [
+      { namn: "Toalettstol golvstående med mjukstängande sits", aterforsaljare: "Ahlsell", inkopspris: 2450, pris: 3200, antal: 1, enhet: "ST" },
+    ],
+  },
+  {
+    id: "fettavskiljare-bageri",
+    nummer: 9003,
+    kund: "bageri",
+    status: "skickad",
+    // Har gått ut utan svar
+    offertdatum: dag(-45),
+    giltigTill: dag(-15),
+    beraknadeTimmar: 16,
+    beraknadStracka: 20,
+    beskrivning:
+      "Installation av fettavskiljare enligt kommunens krav, med anslutning till befintligt spillvatten från bageriets disk och degberedning.",
+    villkor:
+      "Bygganmälan görs av beställaren. Grävning och återfyllning ingår inte.",
+    artiklar: [
+      { namn: "Fettavskiljare 2 l/s med provtagningsbrunn", aterforsaljare: "Ahlsell", inkopspris: 22400, pris: 28900, antal: 1, enhet: "ST" },
+      { namn: "Avloppsrör PP 110 mm", aterforsaljare: "Ahlsell", inkopspris: 118, pris: 165, antal: 8, enhet: "M" },
+    ],
+    ovrigaKostnader: [{ beskrivning: "Frakt fettavskiljare", pris: 1450 }],
+  },
+  {
+    id: "badrum-erik",
+    nummer: 9004,
+    kund: "erik",
+    // Kunden tackade ja – jobbet finns bland testjobben
+    jobb: "badrum-erik",
+    status: "accepterad",
+    offertdatum: dag(-30),
+    giltigTill: dag(0),
+    rotAvdrag: true,
+    beraknadeTimmar: 36,
+    beraknadStracka: 130,
+    beskrivning:
+      "Badrumsrenovering, VVS-delen: rivning av gammalt, flytt av golvbrunn, nya rör i vägg med fördelarskåp, montering av vägghängd WC, handfat och duschblandare.",
+    villkor: "Plattsättning ingår inte och utförs av annan entreprenör.",
+    artiklar: [
+      { namn: "Golvbrunn 110 mm med klämring", artikelnr: "6012774", aterforsaljare: "Ahlsell", inkopspris: 1420, pris: 1890, antal: 1, enhet: "ST" },
+      { namn: "PEX-rör 15 mm i skyddsrör", aterforsaljare: "Ahlsell", inkopspris: 31, pris: 45, antal: 24, enhet: "M" },
+      { namn: "Fördelarskåp med 4 utgångar", aterforsaljare: "Ahlsell", inkopspris: 2350, pris: 3150, antal: 1, enhet: "ST" },
+      { namn: "Vägghängd WC med fixtur", aterforsaljare: "Bauhaus", inkopspris: 4990, pris: 5990, antal: 1, enhet: "ST" },
+    ],
+    ovrigaKostnader: [{ beskrivning: "Container för rivningsmassor", pris: 1850 }],
+  },
+  {
+    id: "varmepump-perolof",
+    nummer: 9005,
+    kund: "perolof",
+    status: "avbojd",
+    offertdatum: dag(-20),
+    giltigTill: dag(10),
+    rotAvdrag: true,
+    fastPris: 94500,
+    fastPrisArbete: 28000,
+    beskrivning:
+      "Byte av oljepanna mot luft/vatten-värmepump 12 kW med inomhusdel och 180 l varmvattenberedare. Demontering av oljepanna och oljetank ingår.",
+    internaAnteckningar: "Kunden valde en annan firma – billigare men utan tanksanering.",
+  },
+];
+
+// ------------------------------------------------------------
 // Körning
 // ------------------------------------------------------------
 
 async function taBortTestdata() {
+  // Testofferter och offerter som gjorts i appen till testkunder. Tas bort
+  // före kunderna – annars blir de kvar utan kund (onDelete: SetNull).
+  const o = await prisma.offert.deleteMany({
+    where: {
+      OR: [
+        { id: { startsWith: PREFIX } },
+        { customerId: { startsWith: PREFIX } },
+      ],
+    },
+  });
   // Fakturor som utfärdats på testjobb i appen. Tas bort först – annars blir
   // de kvar utan jobb och kund (onDelete: SetNull). Fakturanumren återanvänds
   // inte: nästa fakturanummer i företagsuppgifterna ändras inte.
@@ -512,7 +630,7 @@ async function taBortTestdata() {
   // Underrader (artiklar, resor, arbetspass …) följer med via onDelete: Cascade
   const j = await prisma.job.deleteMany({ where: { id: { startsWith: PREFIX } } });
   const k = await prisma.customer.deleteMany({ where: { id: { startsWith: PREFIX } } });
-  return { fakturor: f.count, jobb: j.count, kunder: k.count };
+  return { fakturor: f.count, offerter: o.count, jobb: j.count, kunder: k.count };
 }
 
 async function laggIn() {
@@ -522,8 +640,8 @@ async function laggIn() {
   }
 
   const borttaget = await taBortTestdata();
-  if (borttaget.jobb || borttaget.kunder || borttaget.fakturor) {
-    console.log(`Tog bort gammal testdata: ${borttaget.kunder} kunder, ${borttaget.jobb} jobb, ${borttaget.fakturor} fakturor.`);
+  if (borttaget.jobb || borttaget.kunder || borttaget.fakturor || borttaget.offerter) {
+    console.log(`Tog bort gammal testdata: ${borttaget.kunder} kunder, ${borttaget.jobb} jobb, ${borttaget.offerter} offerter, ${borttaget.fakturor} fakturor.`);
   }
 
   for (const k of kunder) {
@@ -550,13 +668,31 @@ async function laggIn() {
     });
   }
 
-  console.log(`Klart: ${kunder.length} testkunder och ${jobb.length} testjobb i "${company.name}".`);
+  for (const o of offerter) {
+    const { id, nummer, kund, jobb: jobbId, artiklar = [], ovrigaKostnader = [], ...falt } = o;
+    await prisma.offert.create({
+      data: {
+        ...falt,
+        id: PREFIX + "offert-" + id,
+        companyId: company.id,
+        offertnummer: nummer,
+        customerId: PREFIX + "kund-" + kund,
+        jobId: jobbId ? PREFIX + "jobb-" + jobbId : null,
+        timpris: TIMPRIS,
+        milersattning: MIL,
+        artiklar: { create: artiklar.map((a, i) => ({ ...a, ordning: i })) },
+        ovrigaKostnader: { create: ovrigaKostnader.map((k, i) => ({ ...k, ordning: i })) },
+      },
+    });
+  }
+
+  console.log(`Klart: ${kunder.length} testkunder, ${jobb.length} testjobb och ${offerter.length} testofferter i "${company.name}".`);
 }
 
 try {
   if (process.argv.includes("--ta-bort")) {
     const r = await taBortTestdata();
-    console.log(`Tog bort ${r.kunder} testkunder, ${r.jobb} testjobb och ${r.fakturor} testfakturor.`);
+    console.log(`Tog bort ${r.kunder} testkunder, ${r.jobb} testjobb, ${r.offerter} testofferter och ${r.fakturor} testfakturor.`);
   } else {
     await laggIn();
   }

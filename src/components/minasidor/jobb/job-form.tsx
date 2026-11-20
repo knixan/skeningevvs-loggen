@@ -3,6 +3,7 @@ import Image from "next/image";
 import * as React from "react";
 import { toast } from "sonner";
 import {
+  FormProvider,
   useFieldArray,
   useForm,
   useWatch,
@@ -14,10 +15,6 @@ import {
   Plus,
   Trash2,
   Package,
-  Tag,
-  Hash,
-  Store,
-  Layers2,
   Receipt,
   StickyNote,
   MapPin,
@@ -31,11 +28,8 @@ import {
   TriangleAlert,
   Wrench,
   User,
-  UserPlus,
-  Search,
   ImagePlus,
   Calculator,
-  Percent,
   X,
 } from "lucide-react";
 
@@ -44,28 +38,22 @@ import {
   type JobInput,
   beräknaFaktura,
   beräknaPaslag,
-  utprisMedPaslag,
   formateraKr,
   formateraTal,
-  kundensNamn,
   MOMS_PROCENT,
-  radBelopp,
   ROT_PROCENT,
   ROT_BARA_PRIVAT,
   type Customer,
 } from "@/lib/job-schema";
 import { deleteUploadedImage } from "@/lib/job-actions";
-import AhlsellSok from "./ahlsell-sok";
 import { idag } from "@/lib/datum";
 import { useUploadThing } from "@/lib/uploadthing-client";
-import { useEffect, useState, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useRef } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import {
   Felmeddelande,
@@ -73,7 +61,18 @@ import {
   FormSection,
   FormSubsection,
   SekundarKnapp,
+  SumRow,
+  ToggleRow,
+  forstaFormularFel,
+  tomtBlirInget,
+  tomtBlirNoll,
+  useScrollaTillForstaFel,
 } from "@/components/minasidor/formular";
+import KundValjare from "@/components/minasidor/kund-valjare";
+import {
+  ArtiklarFalt,
+  OvrigaKostnaderFalt,
+} from "@/components/minasidor/prisrader";
 
 interface Props {
   onSubmit: (data: JobInput, bilder: { url: string; key: string }[]) => void;
@@ -109,38 +108,8 @@ const tomDefaults: JobInput = {
   fastPrisArbete: undefined,
 };
 
-const sek = (n: number) =>
-  n.toLocaleString("sv-SE", {
-    style: "currency",
-    currency: "SEK",
-    maximumFractionDigits: 0,
-  });
-
 /** Med ören, som på fakturan. Ett tomt nummerfält (NaN) visas som "–". */
 const kronor = (n: number) => (Number.isFinite(n) ? formateraKr(n) : "–");
-
-// Ett tomt nummerfält ger annars NaN, som stoppar sparningen.
-/** Tomt fält → 0, t.ex. timpris och priser. */
-const tomtBlirNoll = {
-  setValueAs: (v: string) => (v === "" ? 0 : Number(v)),
-};
-/** Tomt fält → inget värde, för tal som är valfria. */
-const tomtBlirInget = {
-  setValueAs: (v: string) => (v === "" ? undefined : Number(v)),
-};
-
-/** Första felmeddelandet bland formulärets fel, även inne i listor. */
-function forstaFel(fel: FieldErrors): string | undefined {
-  for (const [nyckel, varde] of Object.entries(fel)) {
-    // `ref` pekar på DOM-elementet – gå aldrig in i det
-    if (nyckel === "ref" || !varde || typeof varde !== "object") continue;
-    if ("message" in varde && typeof varde.message === "string" && varde.message)
-      return varde.message;
-    const djupare = forstaFel(varde as FieldErrors);
-    if (djupare) return djupare;
-  }
-  return undefined;
-}
 
 export default function JobForm({
   onSubmit,
@@ -168,99 +137,30 @@ export default function JobForm({
     handleSubmit,
     control,
     setValue,
-    getValues,
     formState: { errors, submitCount },
   } = form;
 
-  // Efter ett stoppat försök att spara: scrolla till första felet. Körs efter
-  // att felmeddelandena ritats ut – därför en effekt och inte i visaFel.
   const formRef = useRef<HTMLFormElement>(null);
-  useEffect(() => {
-    if (submitCount === 0) return;
-    formRef.current
-      ?.querySelector("[data-fel]")
-      ?.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, [submitCount]);
+  useScrollaTillForstaFel(formRef, submitCount);
 
   function visaFel(fel: FieldErrors<JobInput>) {
     toast.error("Jobbet sparades inte", {
-      description: forstaFel(fel) ?? "Kontrollera de markerade fälten.",
+      description: forstaFormularFel(fel) ?? "Kontrollera de markerade fälten.",
     });
   }
 
-  // Inköpspris eller påslag ändrat → räkna om utpriset
-  function raknaUtpris(i: number) {
-    const ink = getValues(`artiklar.${i}.inkopspris`);
-    const paslag = getValues(`artiklar.${i}.paslag`);
-    if (ink > 0 && typeof paslag === "number" && Number.isFinite(paslag)) {
-      setValue(`artiklar.${i}.pris`, utprisMedPaslag(ink, paslag), {
-        shouldDirty: true,
-      });
-    }
-  }
-
-  // Utpris skrivet för hand → visa vilket påslag det motsvarar
-  function raknaPaslag(i: number) {
-    setValue(
-      `artiklar.${i}.paslag`,
-      beräknaPaslag(
-        getValues(`artiklar.${i}.inkopspris`),
-        getValues(`artiklar.${i}.pris`),
-      ) ?? NaN,
-    );
-  }
-
-  const artiklar = useFieldArray({ control, name: "artiklar" });
   const resor = useFieldArray({ control, name: "resor" });
   const arbetstider = useFieldArray({ control, name: "arbetstider" });
-  const ovrigaKostnader = useFieldArray({ control, name: "ovrigaKostnader" });
 
   const live = useWatch({ control }) as Partial<JobInput>;
   // Samma beräkning som fakturan, så att summeringen här stämmer med den
   const faktura = beräknaFaktura({ ...tomDefaults, ...live } as JobInput);
   const summering = faktura.summary;
 
-  // "Skapa ny kund" öppnar en ny flik. När man kommer tillbaka hämtas
-  // kundlistan på nytt med router.refresh() – det behåller det man redan
-  // fyllt i här, till skillnad från att ladda om sidan.
-  const router = useRouter();
-  const vantarPaNyKund = useRef(false);
-  useEffect(() => {
-    function hamtaNyaKunder() {
-      if (document.visibilityState !== "visible" || !vantarPaNyKund.current)
-        return;
-      vantarPaNyKund.current = false;
-      router.refresh();
-    }
-    document.addEventListener("visibilitychange", hamtaNyaKunder);
-    window.addEventListener("focus", hamtaNyaKunder);
-    return () => {
-      document.removeEventListener("visibilitychange", hamtaNyaKunder);
-      window.removeEventListener("focus", hamtaNyaKunder);
-    };
-  }, [router]);
-
-  // Kundväljare
-  const [kundSok, setKundSok] = useState("");
-  const [kundFokus, setKundFokus] = useState(false);
-  const kundSokRef = useRef<HTMLInputElement>(null);
-  const valdCustomerId = live.customerId;
-  const valdKund = customers.find((c) => c.id === valdCustomerId) ?? null;
+  const valdKund = customers.find((c) => c.id === live.customerId) ?? null;
   // ROT gäller bara privatpersoner. Servern stoppar det också.
   const rotForForetag =
     (live.rotAvdrag ?? false) && valdKund?.typ === "foretag";
-
-  const filtradeKunder = kundSok.trim()
-    ? customers.filter((c) => {
-        const q = kundSok.toLowerCase();
-        return (
-          c.namn.toLowerCase().includes(q) ||
-          (c.foretagsnamn ?? "").toLowerCase().includes(q) ||
-          (c.telefon ?? "").includes(q) ||
-          (c.epost ?? "").toLowerCase().includes(q)
-        );
-      })
-    : customers;
 
   // Bilder
   const [bilder, setBilder] = useState<{ url: string; key: string }[]>(
@@ -325,6 +225,8 @@ export default function JobForm({
   return (
     // noValidate: all validering sker med zod, så att felen syns på svenska
     // vid fältet – webbläsarens egna bubblor (t.ex. för step) stoppar inte.
+    // FormProvider: artikel- och kostnadsraderna läser formuläret därifrån.
+    <FormProvider {...form}>
     <form
       ref={formRef}
       noValidate
@@ -334,113 +236,11 @@ export default function JobForm({
       {/* 1. Kund & planering */}
       <FormSection icon={User} title="Kund & planering">
         <FormSubsection icon={User} title="Kund">
-          {valdKund ? (
-            <div className="flex items-center justify-between rounded-lg border bg-muted/40 px-4 py-3">
-              <div className="space-y-0.5">
-                <p className="font-medium text-sm">{kundensNamn(valdKund)}</p>
-                <p className="text-xs text-muted-foreground">
-                  {valdKund.typ === "foretag" && valdKund.kontaktperson
-                    ? `${valdKund.kontaktperson} · `
-                    : ""}
-                  {valdKund.telefon}
-                  {valdKund.telefon && valdKund.epost ? " · " : ""}
-                  {valdKund.epost}
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setValue("customerId", undefined, { shouldDirty: true });
-                  setKundSok("");
-                }}
-              >
-                <X className="h-4 w-4 mr-1" />
-                Byt kund
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <div className="flex flex-wrap gap-2">
-                <SekundarKnapp onClick={() => kundSokRef.current?.focus()}>
-                  <User className="h-4 w-4" />
-                  Befintlig kund
-                </SekundarKnapp>
-                <SekundarKnapp asChild>
-                  <a
-                    href="/mina-sidor/kunder/ny"
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={() => (vantarPaNyKund.current = true)}
-                  >
-                    <UserPlus className="h-4 w-4" />
-                    Skapa ny kund
-                  </a>
-                </SekundarKnapp>
-              </div>
-              <div className="space-y-2">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    ref={kundSokRef}
-                    placeholder="Sök på namn, telefon eller e-post..."
-                    value={kundSok}
-                    onChange={(e) => setKundSok(e.target.value)}
-                    onFocus={() => setKundFokus(true)}
-                    onBlur={() => setTimeout(() => setKundFokus(false), 150)}
-                    className="pl-9"
-                  />
-                </div>
-                {customers.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">
-                    Inga kunder i kundregistret ännu.{" "}
-                    <a
-                      href="/mina-sidor/kunder/ny"
-                      className="underline"
-                      target="_blank"
-                      onClick={() => (vantarPaNyKund.current = true)}
-                    >
-                      Lägg till en kund
-                    </a>
-                    .
-                  </p>
-                ) : (kundSok.trim() || kundFokus) &&
-                  filtradeKunder.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">
-                    Inga kunder matchar sökningen.
-                  </p>
-                ) : kundSok.trim() || kundFokus ? (
-                  <div className="rounded-lg border divide-y max-h-60 overflow-y-auto">
-                    {filtradeKunder.map((c) => (
-                      <button
-                        key={c.id}
-                        type="button"
-                        className="w-full text-left px-3 py-2.5 hover:bg-muted/50 transition-colors"
-                        onClick={() => {
-                          setValue("customerId", c.id, { shouldDirty: true });
-                          setKundSok("");
-                          setKundFokus(false);
-                        }}
-                      >
-                        <p className="text-sm font-medium">
-                          {kundensNamn(c)}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {c.typ === "foretag" && c.kontaktperson
-                            ? `${c.kontaktperson} · `
-                            : ""}
-                          {c.telefon}
-                          {c.telefon && c.epost ? " · " : ""}
-                          {c.epost}
-                        </p>
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          )}
+          <KundValjare
+            customers={customers}
+            valdId={live.customerId}
+            onValj={(id) => setValue("customerId", id, { shouldDirty: true })}
+          />
         </FormSubsection>
 
         <FormSubsection icon={ClipboardList} title="Planera arbete & bilder">
@@ -503,272 +303,8 @@ export default function JobForm({
 
       {/* 2. Material */}
       <FormSection icon={Package} title="Material">
-        <FormSubsection
-          icon={Package}
-          title="Artiklar"
-          action={
-            <SekundarKnapp
-              onClick={() =>
-                artiklar.append({
-                  namn: "",
-                  artikelnr: "",
-                  aterforsaljare: "",
-                  inkopspris: 0,
-                  pris: 0,
-                  antal: 1,
-                  enhet: "",
-                  paslag: materialPaslag > 0 ? materialPaslag : undefined,
-                })
-              }
-            >
-              <Plus className="h-4 w-4" /> Lägg till
-            </SekundarKnapp>
-          }
-        >
-          <AhlsellSok
-            onValj={(t, paslag) => {
-              const inkopspris = t.nettoprisOre / 100;
-              const medPaslag = paslag > 0 && inkopspris > 0;
-              artiklar.append({
-                namn: t.benamning,
-                artikelnr: t.artikelnr,
-                aterforsaljare: "Ahlsell",
-                inkopspris,
-                // Inget påslag inställt → utpriset fylls i för hand
-                pris: medPaslag ? utprisMedPaslag(inkopspris, paslag) : 0,
-                paslag: medPaslag ? paslag : undefined,
-                antal:
-                  t.bestallningsmultipel > 1 ? t.bestallningsmultipel : 1,
-                enhet: t.enhet,
-              });
-            }}
-          />
-          {artiklar.fields.map((field, i) => {
-            const rad = live.artiklar?.[i];
-            const radSumma = radBelopp(rad?.pris || 0, rad?.antal || 0);
-            return (
-              <div
-                key={field.id}
-                className="rounded-lg border bg-muted/20 p-3 space-y-3"
-              >
-                <div className="grid grid-cols-12 gap-2 items-start">
-                  <Field
-                    label="Artikelnamn"
-                    icon={<Tag className="h-3 w-3" />}
-                    className="col-span-10 sm:col-span-5"
-                    error={errors.artiklar?.[i]?.namn?.message}
-                  >
-                    <Input
-                      {...register(`artiklar.${i}.namn`)}
-                      placeholder="Artikelnamn"
-                    />
-                  </Field>
-                  <div className="col-span-2 sm:col-span-1 sm:order-last flex justify-end pt-5">
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => artiklar.remove(i)}
-                      aria-label="Ta bort artikel"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <Field
-                    label="Artikelnr"
-                    icon={<Hash className="h-3 w-3" />}
-                    className="col-span-6 sm:col-span-3"
-                    error={errors.artiklar?.[i]?.artikelnr?.message}
-                  >
-                    <Input
-                      {...register(`artiklar.${i}.artikelnr`)}
-                      placeholder="Artikelnr"
-                    />
-                  </Field>
-                  <Field
-                    label="Återförsäljare"
-                    icon={<Store className="h-3 w-3" />}
-                    className="col-span-6 sm:col-span-3"
-                    error={errors.artiklar?.[i]?.aterforsaljare?.message}
-                  >
-                    <Input
-                      {...register(`artiklar.${i}.aterforsaljare`)}
-                      placeholder="T.ex. Ahlsell"
-                    />
-                  </Field>
-                </div>
-
-                <div className="grid grid-cols-12 gap-2 items-start">
-                  <Field
-                    label={
-                      rad?.enhet ? `Antal (${rad.enhet.toLowerCase()})` : "Antal"
-                    }
-                    icon={<Layers2 className="h-3 w-3" />}
-                    className="col-span-4 sm:col-span-2"
-                    error={errors.artiklar?.[i]?.antal?.message}
-                  >
-                    <Input
-                      type="number"
-                      step="any"
-                      min="0"
-                      {...register(`artiklar.${i}.antal`, {
-                        valueAsNumber: true,
-                      })}
-                      placeholder="Antal"
-                    />
-                  </Field>
-                  <Field
-                    label="Inköpspris"
-                    icon={<Receipt className="h-3 w-3" />}
-                    className="col-span-4 sm:col-span-3"
-                    error={errors.artiklar?.[i]?.inkopspris?.message}
-                  >
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      {...register(`artiklar.${i}.inkopspris`, {
-                        ...tomtBlirNoll,
-                        onChange: () => raknaUtpris(i),
-                      })}
-                      placeholder="kr"
-                    />
-                  </Field>
-                  <Field
-                    label="Påslag (%)"
-                    icon={<Percent className="h-3 w-3" />}
-                    className="col-span-4 sm:col-span-2"
-                  >
-                    <Input
-                      type="number"
-                      step="any"
-                      {...register(`artiklar.${i}.paslag`, {
-                        valueAsNumber: true,
-                        onChange: () => raknaUtpris(i),
-                      })}
-                      placeholder="%"
-                    />
-                  </Field>
-                  <Field
-                    label="Utpris"
-                    icon={<Receipt className="h-3 w-3" />}
-                    className="col-span-6 sm:col-span-3"
-                    error={errors.artiklar?.[i]?.pris?.message}
-                  >
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      {...register(`artiklar.${i}.pris`, {
-                        ...tomtBlirNoll,
-                        onChange: () => raknaPaslag(i),
-                      })}
-                      placeholder="kr"
-                    />
-                    {!(rad?.pris && rad.pris > 0) && (
-                      <p className="text-xs font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                        <TriangleAlert className="h-3 w-3" />
-                        Utpris ej ifyllt
-                      </p>
-                    )}
-                  </Field>
-                  <div className="col-span-6 sm:col-span-2 space-y-1.5 text-right">
-                    <p className="text-sm font-medium">Summa</p>
-                    <p className="h-9 flex items-center justify-end text-sm font-semibold">
-                      {sek(radSumma)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-
-          {artiklar.fields.length > 0 && (
-            <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm space-y-1">
-              <div className="flex justify-between text-muted-foreground">
-                <span>Inköpspris totalt</span>
-                <span>{sek(summering.artiklarInkopSum)}</span>
-              </div>
-              <div className="flex justify-between font-semibold">
-                <span>Pris till kund (exkl. moms)</span>
-                <span>{sek(summering.artiklarSum)}</span>
-              </div>
-              {summering.artiklarInkopSum > 0 && (
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Marginal</span>
-                  <span
-                    className={
-                      summering.artiklarMarginal < 0
-                        ? "text-destructive font-medium"
-                        : ""
-                    }
-                  >
-                    {sek(summering.artiklarMarginal)}
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
-        </FormSubsection>
-
-        <FormSubsection
-          icon={StickyNote}
-          title="Övriga kostnader"
-          description="T.ex. förbrukningsmaterial, bortforsling, hyrd utrustning, parkeringskostnad."
-          action={
-            <SekundarKnapp
-              onClick={() =>
-                ovrigaKostnader.append({ beskrivning: "", pris: 0 })
-              }
-            >
-              <Plus className="h-4 w-4" /> Lägg till
-            </SekundarKnapp>
-          }
-        >
-          {ovrigaKostnader.fields.length > 0 && (
-            <div className="hidden sm:grid sm:grid-cols-12 gap-2 text-xs font-medium text-muted-foreground px-1">
-              <div className="col-span-9">Produkt / tjänst</div>
-              <div className="col-span-2">Pris (kr)</div>
-              <div className="col-span-1" />
-            </div>
-          )}
-          {ovrigaKostnader.fields.map((field, i) => (
-            <div key={field.id} className="grid grid-cols-12 gap-2 items-start">
-              <div className="col-span-8 sm:col-span-9 space-y-1">
-                <Input
-                  {...register(`ovrigaKostnader.${i}.beskrivning`)}
-                  placeholder="T.ex. parkeringskostnad, hyrd utrustning..."
-                />
-                <Felmeddelande
-                  fel={errors.ovrigaKostnader?.[i]?.beskrivning?.message}
-                />
-              </div>
-              <div className="col-span-3 sm:col-span-2 space-y-1">
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  {...register(`ovrigaKostnader.${i}.pris`, tomtBlirNoll)}
-                  placeholder="0"
-                />
-                <Felmeddelande
-                  fel={errors.ovrigaKostnader?.[i]?.pris?.message}
-                />
-              </div>
-              <div className="col-span-1 flex justify-end">
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => ovrigaKostnader.remove(i)}
-                  aria-label="Ta bort kostnad"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          ))}
-        </FormSubsection>
+        <ArtiklarFalt materialPaslag={materialPaslag} summering={summering} />
+        <OvrigaKostnaderFalt />
       </FormSection>
 
       {/* 3. Tid & resor */}
@@ -1231,50 +767,6 @@ export default function JobForm({
         </div>
       )}
     </form>
-  );
-}
-
-function ToggleRow({
-  id,
-  label,
-  checked,
-  onChange,
-}: {
-  id: string;
-  label: string;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <div className="flex items-center gap-3">
-      <Checkbox
-        id={id}
-        checked={checked}
-        onCheckedChange={(v) => onChange(Boolean(v))}
-      />
-      <Label htmlFor={id} className="font-normal cursor-pointer">
-        {label}
-      </Label>
-    </div>
-  );
-}
-
-function SumRow({
-  label,
-  icon,
-  value,
-}: {
-  label: string;
-  icon?: React.ReactNode;
-  value: string;
-}) {
-  return (
-    <div className="flex justify-between items-center">
-      <span className="text-muted-foreground flex items-center gap-1.5">
-        {icon}
-        {label}
-      </span>
-      <span className="tabular-nums font-medium">{value}</span>
-    </div>
+    </FormProvider>
   );
 }

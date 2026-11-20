@@ -11,16 +11,21 @@ import {
   jobSchema,
   kronorTillOre,
   rensaKundFalt,
-  ROT_BARA_PRIVAT,
   type JobInput,
   type CustomerInput,
   type CompanyInput,
 } from "./job-schema";
 import { idagISverige } from "./datum";
 import { skapaFakturaData } from "./faktura";
+import {
+  fastPrisArbeteTillDb,
+  foljUppDatumTillDb,
+  nyttJobbTillDb,
+} from "./jobb-db";
 import { getJobs, JOBB_MED_RADER, mapJob } from "./queries";
 import {
   forstaFel,
+  kontrolleraKund,
   medFelhantering,
   requireCompany,
   requireExistingCompany,
@@ -32,16 +37,6 @@ import {
 // ligger i queries.ts (utom "Ladda fler", se laddaFlerJobb).
 
 const utapi = new UTApi();
-
-/**
- * Uppföljningsdatum till databasen. Inget datum om bocken är av eller om
- * datumet är tomt. Att datumet finns på riktigt har jobSchema redan
- * kontrollerat (z.iso.date) – anropa bara med data som gått genom schemat.
- */
-function foljUppDatumTillDb(data: JobInput): Date | null {
-  if (!data.foljUpp || !data.foljUppDatum) return null;
-  return new Date(data.foljUppDatum);
-}
 
 function ids<T extends { id?: string }>(rows: T[]) {
   return rows.flatMap((row) => (row.id ? [row.id] : []));
@@ -304,92 +299,12 @@ export async function createJob(
 
   const sparat = await medFelhantering(
     "Kunde inte spara jobbet. Försök igen.",
-    () => skapaJobb(company.id, data, bilder),
+    () => prisma.job.create({ data: nyttJobbTillDb(company.id, data, bilder) }),
   );
   if (!sparat.ok) return sparat;
 
   revalidatePath("/mina-sidor");
   return { ok: true as const };
-}
-
-/**
- * Kunden på ett jobb måste tillhöra företaget, och ROT går bara att välja för
- * privatpersoner. Returnerar ett felmeddelande, eller null om allt stämmer.
- */
-async function kontrolleraKund(companyId: string, data: JobInput) {
-  if (!data.customerId) return null;
-  const customer = await prisma.customer.findFirst({
-    where: { id: data.customerId, companyId },
-    select: { typ: true },
-  });
-  if (!customer) return "Kund hittades inte";
-  if (data.rotAvdrag && customer.typ === "foretag") return ROT_BARA_PRIVAT;
-  return null;
-}
-
-/** Arbetsdelen av ett fast pris sparas bara när jobbet har fast pris. */
-function fastPrisArbeteTillDb(data: JobInput) {
-  return data.fastPris != null ? (data.fastPrisArbete ?? null) : null;
-}
-
-function skapaJobb(
-  companyId: string,
-  data: JobInput,
-  bilder: { url: string; key: string }[],
-) {
-  return prisma.job.create({
-    data: {
-      companyId,
-      customerId: data.customerId || null,
-      rotAvdrag: data.rotAvdrag,
-      timpris: data.timpris ?? 0,
-      milersattning: data.milersattning ?? 0,
-      fastPris: data.fastPris ?? null,
-      fastPrisArbete: fastPrisArbeteTillDb(data),
-      pagaende: data.pagaende,
-      utfort: data.utfort,
-      fakturerat: data.fakturerat,
-      betalt: data.betalt,
-      foljUpp: Boolean(data.foljUpp),
-      foljUppDatum: foljUppDatumTillDb(data),
-      anteckningar: data.anteckningar ?? "",
-      utfortArbete: data.utfortArbete ?? "",
-      planeratArbete: data.planeratArbete ?? "",
-      internaAnteckningar: data.internaAnteckningar ?? "",
-      artiklar: {
-        create: data.artiklar.map((a) => ({
-          namn: a.namn,
-          artikelnr: a.artikelnr ?? "",
-          aterforsaljare: a.aterforsaljare ?? "",
-          inkopspris: a.inkopspris ?? 0,
-          pris: a.pris,
-          antal: a.antal,
-          enhet: a.enhet ?? "",
-        })),
-      },
-      resor: {
-        create: data.resor.map((r) => ({
-          datum: new Date(r.datum),
-          stracka: r.stracka,
-        })),
-      },
-      arbetspass: {
-        create: data.arbetstider.map((w) => ({
-          datum: new Date(w.datum),
-          timmar: w.timmar,
-        })),
-      },
-      images: {
-        create: bilder.map((b) => ({ url: b.url, key: b.key })),
-      },
-      ovrigaKostnader: {
-        create: (data.ovrigaKostnader ?? []).map((k) => ({
-          beskrivning: k.beskrivning,
-          pris: k.pris,
-        })),
-      },
-    },
-  });
 }
 
 export async function updateJob(

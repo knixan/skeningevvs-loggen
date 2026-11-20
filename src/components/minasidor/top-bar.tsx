@@ -19,7 +19,8 @@ export function TopBar() {
   }
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between border-b bg-background px-4">
+    // print:hidden – syns inte på utskrivna fakturor och offerter
+    <header className="flex h-14 shrink-0 items-center justify-between border-b bg-background px-4 print:hidden">
       <Image
         src="/skeningevvs-faktura-logga.png"
         alt="KnegarLoggen"

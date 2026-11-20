@@ -3,6 +3,7 @@ import "server-only";
 import { headers } from "next/headers";
 import type { z } from "zod";
 import { auth } from "./auth";
+import { ROT_BARA_PRIVAT } from "./job-schema";
 import { prisma } from "./prisma";
 
 // Gemensamt för server actions och läsningar: inloggning, företaget och
@@ -80,6 +81,25 @@ export async function requireSession(): Promise<{ userId: string } | Fel> {
   const session = await getSession();
   if (!session?.user) return { ok: false, error: "Inte inloggad" };
   return { userId: session.user.id };
+}
+
+/**
+ * Kunden på ett jobb eller en offert måste tillhöra företaget, och ROT går
+ * bara att välja för privatpersoner. Returnerar ett felmeddelande, eller null
+ * om allt stämmer.
+ */
+export async function kontrolleraKund(
+  companyId: string,
+  data: { customerId?: string; rotAvdrag: boolean },
+) {
+  if (!data.customerId) return null;
+  const customer = await prisma.customer.findFirst({
+    where: { id: data.customerId, companyId },
+    select: { typ: true },
+  });
+  if (!customer) return "Kund hittades inte";
+  if (data.rotAvdrag && customer.typ === "foretag") return ROT_BARA_PRIVAT;
+  return null;
 }
 
 /** Första valideringsfelet som ett svenskt meddelande till användaren. */

@@ -2,7 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Plus, Users, Building2, Settings } from "lucide-react";
+import {
+  LayoutDashboard,
+  Plus,
+  FilePenLine,
+  Users,
+  Building2,
+  Settings,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -20,6 +27,13 @@ const navItems = [
     mobileLabel: "Nytt",
     icon: Plus,
     isActive: (p: string) => p.startsWith("/mina-sidor/nytt-jobb"),
+  },
+  {
+    href: "/mina-sidor/offerter",
+    label: "Offerter",
+    mobileLabel: "Offerter",
+    icon: FilePenLine,
+    isActive: (p: string) => p.startsWith("/mina-sidor/offerter"),
   },
   {
     href: "/mina-sidor/kunder",

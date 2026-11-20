@@ -18,20 +18,23 @@ En vanlig Next.js-app (inte monorepo), npm som pakethanterare.
 
 ## Struktur
 
-- **`src/app/`** – routes. `logga-in/`, `registrera/`, `api/auth/` (better-auth), `api/uploadthing/`, och det skyddade området `mina-sidor/` (jobb, kunder, företag, inställningar, `jobb/[id]/skriv-ut` = faktura).
-- **`src/components/minasidor/`** – UI med affärslogik, uppdelat på `jobb/`, `kunder/`, `faktura/`, `foretag/`, `oversikt/`, `installningar/`.
+- **`src/app/`** – routes. `logga-in/`, `registrera/`, `api/auth/` (better-auth), `api/uploadthing/`, och det skyddade området `mina-sidor/` (jobb, offerter, kunder, företag, inställningar, `jobb/[id]/skriv-ut` = faktura, `offerter/[id]/skriv-ut` = offert).
+- **`src/components/minasidor/`** – UI med affärslogik, uppdelat på `jobb/`, `offert/`, `kunder/`, `faktura/`, `foretag/`, `oversikt/`, `installningar/`. Delat mellan jobb- och offertformuläret: `formular.tsx` (kort, fält, `ToggleRow`, `SumRow`), `kund-valjare.tsx` och `prisrader.tsx` (artiklar och övriga kostnader – kräver `<FormProvider>`).
 - **`src/components/ui/`** – shadcn/ui. Lägg till nya komponenter med `npx shadcn add <komponent>`, skriv dem inte för hand.
 - **`src/lib/`**
-  - `job-schema.ts` – zod-scheman (kund, jobb, företag), typer och **alla beräkningar** (`beräknaSummering`, `beräknaFaktura`, `radBelopp`, `avrundaTillOre`).
+  - `job-schema.ts` – zod-scheman (kund, jobb, offert, företag), typer och **alla beräkningar** (`beräknaSummering`, `beräknaFaktura`, `offertPrisunderlag`, `radBelopp`, `avrundaTillOre`).
   - `faktura.ts` – `FakturaData` (allt som står på en faktura, färdigräknat) och `skapaFakturaData`. Samma data används för förhandsgranskning och sparad faktura.
+  - `offert.ts` – `OffertData` och `skapaOffertData`, samma idé som fakturan men byggs om varje gång (ingen ögonblicksbild).
   - `job-actions.ts` – server actions (`"use server"`) för jobb, kunder, företag, konto, faktura och bilder. Bara skrivningar, plus `laddaFlerJobb` ("Ladda fler" i jobblistan).
+  - `offert-actions.ts` – server actions för offerter, inklusive `skapaJobbFranOffert` ("Gör om till jobb").
+  - `jobb-db.ts` – hur ett validerat jobb sparas (`nyttJobbTillDb` m.fl.). Delas av `createJob` och `skapaJobbFranOffert` så att ett jobb alltid sparas med samma fält.
   - `queries.ts` – läsningar för serverkomponenter (`import "server-only"`, inga endpoints).
   - `server-hjalp.ts` – `requireCompany`/`requireExistingCompany`/`requireSession`, `inloggatForetag` och `medFelhantering`. Delas av actions och läsningar.
   - `auth.ts` / `auth-client.ts` – better-auth. `env.ts` – kräver alla miljövariabler vid start.
   - `prisma.ts` – Prisma-klient med `@prisma/adapter-pg`.
   - `uploadthing.ts` / `uploadthing-client.ts` – filrouter (`jobbBilder`, `companyLogo`) och klient.
 - **`src/proxy.ts`** – Next 16:s ersättare för middleware. Måste ligga i `src/`. Kollar bara att sessionscookien finns – den riktiga behörighetskontrollen görs alltid på servern.
-- **`prisma/schema.prisma`** – auth-tabeller (User/Session/Account/Verification) + Company, Customer, Job, jobbets underrader (Article, Trip, WorkSession, JobImage, OvrigKostnad) och Faktura (sparade fakturor).
+- **`prisma/schema.prisma`** – auth-tabeller (User/Session/Account/Verification) + Company, Customer, Job, jobbets underrader (Article, Trip, WorkSession, JobImage, OvrigKostnad), Faktura (sparade fakturor) och Offert med egna rader (OffertArtikel, OffertKostnad).
 
 ## Domänregler (påverkar pengar och säkerhet)
 
@@ -50,6 +53,11 @@ En vanlig Next.js-app (inte monorepo), npm som pakethanterare.
   - Databasen har unikt index på `[companyId, fakturanummer]`, både på `job` och `faktura`.
 - **Utfärdad faktura ändras aldrig** (bokföringslagen). `utfardaFaktura` sparar fakturan som en ögonblicksbild (`faktura.innehall` = `FakturaData`, med fakturadatum och summor i ören) i samma transaktion som numret delas ut. Utskrift och PDF läser sedan bara den sparade – ändringar i jobb, kund, företag eller satser påverkar den inte. Bara logotypen hämtas från företaget. Tas jobbet bort finns fakturan kvar (`onDelete: SetNull`). Ändra inte formen på `FakturaData` för gamla fakturor – lägg bara till fält.
 - **Fakturadatum** är dagens datum i Sverige (`idagISverige()` i `lib/datum.ts`) – servern går i UTC.
+- **Offerter** är en egen modell, skild från jobb och fakturor:
+  - Egen nummerserie (`Company.nastaOffertnummer`), delas ut atomärt när offerten skapas. Rör aldrig fakturanumren. Testdatans offerter har nummer från 9001 och tar inget ur serien.
+  - Beloppen räknas med `beräknaFaktura(offertPrisunderlag(offert))` – samma formel som fakturan, ingen egen. Beräknad arbetstid och körsträcka blir varsin rad.
+  - En offert kan ändras fritt (inget bokföringsunderlag). Raderna byts ut i sin helhet när den sparas; `ordning` håller ordningen.
+  - "Gör om till jobb" (`skapaJobbFranOffert`) låser offerten med `FOR UPDATE`, så att två klick inte ger två jobb. Den beräknade tiden blir **inte** loggad tid på jobbet – bara en anteckning.
 - **Server actions** (`"use server"`) ska alltid:
   1. kräva inloggning (`requireCompany` / `requireExistingCompany` / `requireSession`),
   2. validera indata med zod **på servern** – klientens validering räknas inte,

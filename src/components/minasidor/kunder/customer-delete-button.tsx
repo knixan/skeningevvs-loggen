@@ -58,7 +58,7 @@ export default function CustomerDeleteButton({
           <AlertDialogDescription>
             Du håller på att ta bort{" "}
             <span className="font-medium text-foreground">{namn}</span>. Kundens
-            jobb finns kvar men förlorar sin kundkoppling. En kund med
+            jobb och offerter finns kvar men förlorar sin kundkoppling. En kund med
             fakturerade jobb kan inte tas bort. Åtgärden kan inte ångras.
           </AlertDialogDescription>
         </AlertDialogHeader>

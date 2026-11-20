@@ -190,6 +190,48 @@ export const ovrigKostnadSchema = z.object({
 export const ROT_BARA_PRIVAT =
   "ROT-avdrag gäller bara privatpersoner – bocka ur ROT eller byt kund.";
 
+// Regler för fast pris – gemensamma för jobb och offerter.
+type FastPrisFalt = {
+  rotAvdrag: boolean;
+  fastPris?: number;
+  fastPrisArbete?: number;
+};
+
+/** ROT räknas bara på arbete – med fast pris måste arbetsdelen anges. */
+const rotKraverArbetskostnad = {
+  regel: (d: FastPrisFalt) =>
+    !(d.rotAvdrag && d.fastPris != null && d.fastPrisArbete == null),
+  fel: {
+    message:
+      "Ange hur mycket av det fasta priset som är arbete – ROT räknas bara på arbetskostnaden",
+    path: ["fastPrisArbete"],
+  },
+};
+
+const arbetskostnadInomFastPris = {
+  regel: (d: FastPrisFalt) =>
+    d.fastPris == null ||
+    d.fastPrisArbete == null ||
+    d.fastPrisArbete <= d.fastPris,
+  fel: {
+    message: "Arbetskostnaden kan inte vara högre än det fasta priset",
+    path: ["fastPrisArbete"],
+  },
+};
+
+const fastPrisFalt = {
+  fastPris: belopp(
+    "Ange fast pris",
+    "Fast pris får inte vara negativt",
+  ).optional(),
+  // Hur mycket av det fasta priset som är arbete (exkl. moms). ROT räknas
+  // bara på arbete som står på fakturan – med fast pris är det den här.
+  fastPrisArbete: belopp(
+    "Ange arbetskostnaden",
+    "Arbetskostnaden får inte vara negativ",
+  ).optional(),
+};
+
 export const jobSchema = z
   .object({
     customerId: z.string().optional(),
@@ -235,40 +277,14 @@ export const jobSchema = z
 
     bilder: z.array(z.object({ url: z.string(), key: z.string() })).default([]),
 
-    fastPris: belopp(
-      "Ange fast pris",
-      "Fast pris får inte vara negativt",
-    ).optional(),
-    // Hur mycket av det fasta priset som är arbete (exkl. moms). ROT räknas
-    // bara på arbete som står på fakturan – med fast pris är det den här.
-    fastPrisArbete: belopp(
-      "Ange arbetskostnaden",
-      "Arbetskostnaden får inte vara negativ",
-    ).optional(),
+    ...fastPrisFalt,
   })
   .refine((data) => !(data.betalt && !data.fakturerat), {
     message: "Kan inte markera som betalt utan att ha fakturerat",
     path: ["betalt"],
   })
-  .refine(
-    (data) =>
-      !(data.rotAvdrag && data.fastPris != null && data.fastPrisArbete == null),
-    {
-      message:
-        "Ange hur mycket av det fasta priset som är arbete – ROT räknas bara på arbetskostnaden",
-      path: ["fastPrisArbete"],
-    },
-  )
-  .refine(
-    (data) =>
-      data.fastPris == null ||
-      data.fastPrisArbete == null ||
-      data.fastPrisArbete <= data.fastPris,
-    {
-      message: "Arbetskostnaden kan inte vara högre än det fasta priset",
-      path: ["fastPrisArbete"],
-    },
-  );
+  .refine(rotKraverArbetskostnad.regel, rotKraverArbetskostnad.fel)
+  .refine(arbetskostnadInomFastPris.regel, arbetskostnadInomFastPris.fel);
 
 export type JobInput = z.infer<typeof jobSchema>;
 
@@ -276,6 +292,82 @@ export type Job = JobInput & {
   id: string;
   skapad: string;
   fakturanummer?: number;
+  customer?: Customer | null;
+};
+
+// ============================================================
+// Offert-schema
+// ============================================================
+
+export const OFFERT_STATUSAR = [
+  "utkast",
+  "skickad",
+  "accepterad",
+  "avbojd",
+] as const;
+export type OffertStatus = (typeof OFFERT_STATUSAR)[number];
+
+export const OFFERT_STATUS_TEXT: Record<OffertStatus, string> = {
+  utkast: "Utkast",
+  skickad: "Skickad",
+  accepterad: "Accepterad",
+  avbojd: "Avböjd",
+};
+
+/** Hur många dagar en ny offert gäller, som förslag i formuläret. */
+export const OFFERT_GILTIG_DAGAR = 30;
+
+export const offertSchema = z
+  .object({
+    // En offert utan mottagare går inte att skicka
+    customerId: z.string({ error: "Välj en kund" }).min(1, "Välj en kund"),
+    status: z.enum(OFFERT_STATUSAR).default("utkast"),
+    offertdatum: datumSchema,
+    giltigTill: datumSchema,
+
+    timpris: belopp("Ange timpris", "Timpris får inte vara negativt").default(
+      0,
+    ),
+    milersattning: belopp(
+      "Ange milersättning",
+      "Milersättning får inte vara negativ",
+    ).default(0),
+    // Uppskattningar – blir inte loggad tid när offerten görs om till jobb
+    beraknadeTimmar: belopp(
+      "Ange timmar",
+      "Timmar får inte vara negativt",
+    ).default(0),
+    beraknadStracka: belopp(
+      "Ange sträcka",
+      "Sträcka får inte vara negativ",
+    ).default(0),
+    rotAvdrag: z.boolean().default(false),
+
+    artiklar: z.array(articleSchema).default([]),
+    ovrigaKostnader: z.array(ovrigKostnadSchema).default([]),
+
+    beskrivning: z.string().max(2000, högstTecken(2000)).default(""),
+    villkor: z.string().max(2000, högstTecken(2000)).default(""),
+    internaAnteckningar: z.string().max(2000, högstTecken(2000)).default(""),
+
+    ...fastPrisFalt,
+  })
+  // YYYY-MM-DD kan jämföras som text
+  .refine((d) => d.giltigTill >= d.offertdatum, {
+    message: "Offerten kan inte sluta gälla före offertdatumet",
+    path: ["giltigTill"],
+  })
+  .refine(rotKraverArbetskostnad.regel, rotKraverArbetskostnad.fel)
+  .refine(arbetskostnadInomFastPris.regel, arbetskostnadInomFastPris.fel);
+
+export type OffertInput = z.infer<typeof offertSchema>;
+
+export type Offert = OffertInput & {
+  id: string;
+  offertnummer: number;
+  /** Jobbet som skapades från offerten, om kunden tackat ja */
+  jobId?: string;
+  skapad: string;
   customer?: Customer | null;
 };
 
@@ -339,7 +431,46 @@ function summa(belopp: number[]): number {
   return avrundaTillOre(belopp.reduce((sum, b) => sum + b, 0));
 }
 
-export function beräknaSummering(job: JobInput) {
+/**
+ * Det som beräkningarna behöver. Ett jobb (JobInput) passar direkt – en
+ * offert görs om med offertPrisunderlag, så att båda räknas med samma formel.
+ */
+export type Prisunderlag = Pick<
+  JobInput,
+  | "artiklar"
+  | "ovrigaKostnader"
+  | "timpris"
+  | "milersattning"
+  | "rotAvdrag"
+  | "fastPris"
+  | "fastPrisArbete"
+> & {
+  arbetstider: { timmar: number }[];
+  resor: { stracka: number }[];
+};
+
+/**
+ * Offertens priser som underlag till beräkningarna. Den beräknade
+ * arbetstiden och körsträckan blir varsin rad, precis som loggad tid på ett
+ * jobb – så räknas offerten exakt som en faktura på samma underlag.
+ */
+export function offertPrisunderlag(offert: OffertInput): Prisunderlag {
+  return {
+    artiklar: offert.artiklar,
+    ovrigaKostnader: offert.ovrigaKostnader,
+    timpris: offert.timpris,
+    milersattning: offert.milersattning,
+    arbetstider:
+      offert.beraknadeTimmar > 0 ? [{ timmar: offert.beraknadeTimmar }] : [],
+    resor:
+      offert.beraknadStracka > 0 ? [{ stracka: offert.beraknadStracka }] : [],
+    rotAvdrag: offert.rotAvdrag,
+    fastPris: offert.fastPris,
+    fastPrisArbete: offert.fastPrisArbete,
+  };
+}
+
+export function beräknaSummering(job: Prisunderlag) {
   const artiklarSum = summa(job.artiklar.map((a) => radBelopp(a.pris, a.antal)));
   // Bara för egen uppföljning – inköpspriset syns aldrig för kunden
   const artiklarInkopSum = summa(
@@ -395,7 +526,7 @@ export type FakturaRad = {
 };
 
 function fakturaRader(
-  job: JobInput,
+  job: Prisunderlag,
   summary: ReturnType<typeof beräknaSummering>,
 ): FakturaRad[] {
   const rader: FakturaRad[] = [
@@ -445,7 +576,8 @@ function fakturaRader(
 
 // Delad fakturaberäkning (rader, moms, ROT-avdrag, att betala) så att PDF:en,
 // utskriftsvyn och formuläret alltid visar samma summor för samma jobb.
-export function beräknaFaktura(job: JobInput) {
+// Offerter räknas med samma funktion, via offertPrisunderlag.
+export function beräknaFaktura(job: Prisunderlag) {
   const summary = beräknaSummering(job);
   const arFastPris = job.fastPris != null;
 

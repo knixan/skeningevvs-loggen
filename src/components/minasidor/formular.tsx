@@ -1,8 +1,10 @@
 import * as React from "react";
 import type { LucideIcon } from "lucide-react";
+import type { FieldErrors } from "react-hook-form";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 
 // Gemensamma byggstenar så att alla formulär på Mina sidor ser likadana ut:
@@ -145,4 +147,90 @@ export function Field({
       <Felmeddelande fel={error} />
     </div>
   );
+}
+
+/** Kryssruta med etikett – för val och statusar i formulären. */
+export function ToggleRow({
+  id,
+  label,
+  checked,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <Checkbox
+        id={id}
+        checked={checked}
+        onCheckedChange={(v) => onChange(Boolean(v))}
+      />
+      <Label htmlFor={id} className="font-normal cursor-pointer">
+        {label}
+      </Label>
+    </div>
+  );
+}
+
+/** En rad i en summering: etikett till vänster, belopp till höger. */
+export function SumRow({
+  label,
+  icon,
+  value,
+}: {
+  label: string;
+  icon?: React.ReactNode;
+  value: string;
+}) {
+  return (
+    <div className="flex justify-between items-center">
+      <span className="text-muted-foreground flex items-center gap-1.5">
+        {icon}
+        {label}
+      </span>
+      <span className="tabular-nums font-medium">{value}</span>
+    </div>
+  );
+}
+
+// Ett tomt nummerfält ger annars NaN, som stoppar sparningen.
+/** Tomt fält → 0, t.ex. timpris och priser. */
+export const tomtBlirNoll = {
+  setValueAs: (v: string) => (v === "" ? 0 : Number(v)),
+};
+/** Tomt fält → inget värde, för tal som är valfria. */
+export const tomtBlirInget = {
+  setValueAs: (v: string) => (v === "" ? undefined : Number(v)),
+};
+
+/** Första felmeddelandet bland formulärets fel, även inne i listor. */
+export function forstaFormularFel(fel: FieldErrors): string | undefined {
+  for (const [nyckel, varde] of Object.entries(fel)) {
+    // `ref` pekar på DOM-elementet – gå aldrig in i det
+    if (nyckel === "ref" || !varde || typeof varde !== "object") continue;
+    if ("message" in varde && typeof varde.message === "string" && varde.message)
+      return varde.message;
+    const djupare = forstaFormularFel(varde as FieldErrors);
+    if (djupare) return djupare;
+  }
+  return undefined;
+}
+
+/**
+ * Efter ett stoppat försök att spara: scrolla till första felet. Körs efter
+ * att felmeddelandena ritats ut – därför en effekt.
+ */
+export function useScrollaTillForstaFel(
+  formRef: React.RefObject<HTMLFormElement | null>,
+  submitCount: number,
+) {
+  React.useEffect(() => {
+    if (submitCount === 0) return;
+    formRef.current
+      ?.querySelector("[data-fel]")
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [formRef, submitCount]);
 }
