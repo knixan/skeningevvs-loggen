@@ -32,7 +32,9 @@ import {
   User,
   UserPlus,
   Search,
-  X as XIcon,
+  ImagePlus,
+  Calculator,
+  X,
 } from "lucide-react";
 
 import {
@@ -43,7 +45,6 @@ import {
 } from "@/lib/job-schema";
 import { deleteUploadedImage } from "@/lib/job-actions";
 import { useUploadThing } from "@/lib/uploadthing-client";
-import { ImagePlus, X } from "lucide-react";
 import { useState, useRef } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -51,8 +52,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import {
+  Field,
+  FormSection,
+  FormSubsection,
+  SekundarKnapp,
+} from "@/components/minasidor/formular";
 
 interface Props {
   onSubmit: (data: JobInput, bilder: { url: string; key: string }[]) => void;
@@ -89,6 +95,13 @@ const tomDefaults: JobInput = {
   bilder: [],
   fastPris: undefined,
 };
+
+const sek = (n: number) =>
+  n.toLocaleString("sv-SE", {
+    style: "currency",
+    currency: "SEK",
+    maximumFractionDigits: 0,
+  });
 
 export default function JobForm({
   onSubmit,
@@ -193,17 +206,11 @@ export default function JobForm({
       onSubmit={handleSubmit((data) => onSubmit(data, bilder))}
       className="space-y-6"
     >
-      {/* Kundväljare */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <User className="h-5 w-5 text-muted-foreground" />
-            Kund
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
+      {/* 1. Kund & planering */}
+      <FormSection icon={User} title="Kund & planering">
+        <FormSubsection icon={User} title="Kund">
           {valdKund ? (
-            <div className="flex items-center justify-between rounded-md border bg-muted/30 px-4 py-3">
+            <div className="flex items-center justify-between rounded-lg border bg-muted/40 px-4 py-3">
               <div className="space-y-0.5">
                 <p className="font-medium text-sm">
                   {valdKund.typ === "foretag" && valdKund.foretagsnamn
@@ -228,32 +235,23 @@ export default function JobForm({
                   setKundSok("");
                 }}
               >
-                <XIcon className="h-4 w-4 mr-1" />
+                <X className="h-4 w-4 mr-1" />
                 Byt kund
               </Button>
             </div>
           ) : (
             <div className="space-y-3">
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => kundSokRef.current?.focus()}
-                >
-                  <User className="h-4 w-4 mr-2" />
+              <div className="flex flex-wrap gap-2">
+                <SekundarKnapp onClick={() => kundSokRef.current?.focus()}>
+                  <User className="h-4 w-4" />
                   Befintlig kund
-                </Button>
-                <a
-                  href="/mina-sidor/kunder/ny"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <Button type="button" variant="outline" size="sm">
-                    <UserPlus className="h-4 w-4 mr-2" />
+                </SekundarKnapp>
+                <SekundarKnapp asChild>
+                  <a href="/mina-sidor/kunder/ny" target="_blank" rel="noreferrer">
+                    <UserPlus className="h-4 w-4" />
                     Skapa ny kund
-                  </Button>
-                </a>
+                  </a>
+                </SekundarKnapp>
               </div>
               <div className="space-y-2">
                 <div className="relative">
@@ -286,7 +284,7 @@ export default function JobForm({
                     Inga kunder matchar sökningen.
                   </p>
                 ) : kundSok.trim() || kundFokus ? (
-                  <div className="rounded-md border divide-y max-h-60 overflow-y-auto">
+                  <div className="rounded-lg border divide-y max-h-60 overflow-y-auto">
                     {filtradeKunder.map((c) => (
                       <button
                         key={c.id}
@@ -318,17 +316,9 @@ export default function JobForm({
               </div>
             </div>
           )}
-        </CardContent>
-      </Card>
-      {/* Planera arbete & Bilder */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ClipboardList className="h-5 w-5 text-muted-foreground" />
-            Planera arbete & Bilder
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+        </FormSubsection>
+
+        <FormSubsection icon={ClipboardList} title="Planera arbete & bilder">
           <Textarea
             rows={4}
             {...register("planeratArbete")}
@@ -347,16 +337,13 @@ export default function JobForm({
               className="hidden"
               onChange={hanteraFiler}
             />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
+            <SekundarKnapp
               disabled={laddarUpp}
               onClick={() => fileInputRef.current?.click()}
             >
-              <ImagePlus className="mr-1 h-4 w-4" />
+              <ImagePlus className="h-4 w-4" />
               {laddarUpp ? "Laddar upp..." : "Lägg till bilder"}
-            </Button>
+            </SekundarKnapp>
             {bilder.length > 0 && (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-2">
                 {bilder.map((bild) => (
@@ -366,7 +353,7 @@ export default function JobForm({
                       alt="Jobbild"
                       fill
                       sizes="(max-width: 640px) 33vw, 200px"
-                      className="object-cover rounded-md cursor-pointer"
+                      className="object-cover rounded-lg cursor-pointer"
                       onClick={() => setValdBild(bild.url)}
                     />
                     <button
@@ -385,52 +372,31 @@ export default function JobForm({
               </div>
             )}
           </div>
-        </CardContent>
-      </Card>
+        </FormSubsection>
+      </FormSection>
 
-      {/* Utfört arbete */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Wrench className="h-5 w-5 text-muted-foreground" />
-            Utfört arbete
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Textarea
-            rows={4}
-            {...register("utfortArbete")}
-            placeholder="Beskriv vad som har gjorts i projektet..."
-          />
-        </CardContent>
-      </Card>
-
-      {/* Artiklar */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <Package className="h-5 w-5 text-muted-foreground" />
-            Artiklar
-          </CardTitle>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() =>
-              artiklar.append({
-                namn: "",
-                artikelnr: "",
-                aterforsaljare: "",
-                inkopspris: 0,
-                pris: 0,
-                antal: 1,
-              })
-            }
-          >
-            <Plus className="mr-1 h-4 w-4" /> Lägg till
-          </Button>
-        </CardHeader>
-        <CardContent className="space-y-3">
+      {/* 2. Material */}
+      <FormSection icon={Package} title="Material">
+        <FormSubsection
+          icon={Package}
+          title="Artiklar"
+          action={
+            <SekundarKnapp
+              onClick={() =>
+                artiklar.append({
+                  namn: "",
+                  artikelnr: "",
+                  aterforsaljare: "",
+                  inkopspris: 0,
+                  pris: 0,
+                  antal: 1,
+                })
+              }
+            >
+              <Plus className="h-4 w-4" /> Lägg till
+            </SekundarKnapp>
+          }
+        >
           <div className="hidden sm:grid sm:grid-cols-12 gap-2 text-xs font-medium text-muted-foreground px-1">
             <div className="col-span-2 flex items-center gap-1.5">
               <Tag className="h-3.5 w-3.5" />
@@ -438,7 +404,7 @@ export default function JobForm({
             </div>
             <div className="col-span-2 flex items-center gap-1.5">
               <Hash className="h-3.5 w-3.5" />
-              Artikelnummer
+              Artikelnr
             </div>
             <div className="col-span-2 flex items-center gap-1.5">
               <Store className="h-3.5 w-3.5" />
@@ -549,36 +515,29 @@ export default function JobForm({
                   size="icon"
                   variant="ghost"
                   onClick={() => artiklar.remove(i)}
+                  aria-label="Ta bort artikel"
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
             </div>
           ))}
-        </CardContent>
-      </Card>
+        </FormSubsection>
 
-      {/* Övriga kostnader */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <StickyNote className="h-5 w-5 text-muted-foreground" />
-            Övriga kostnader
-          </CardTitle>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => ovrigaKostnader.append({ beskrivning: "", pris: 0 })}
-          >
-            <Plus className="mr-1 h-4 w-4" /> Lägg till
-          </Button>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-xs text-muted-foreground">
-            T.ex. förbrukningsmaterial, bortforsling, hyrd utrustning,
-            parkeringskostnad.
-          </p>
+        <FormSubsection
+          icon={StickyNote}
+          title="Övriga kostnader"
+          description="T.ex. förbrukningsmaterial, bortforsling, hyrd utrustning, parkeringskostnad."
+          action={
+            <SekundarKnapp
+              onClick={() =>
+                ovrigaKostnader.append({ beskrivning: "", pris: 0 })
+              }
+            >
+              <Plus className="h-4 w-4" /> Lägg till
+            </SekundarKnapp>
+          }
+        >
           {ovrigaKostnader.fields.length > 0 && (
             <div className="hidden sm:grid sm:grid-cols-12 gap-2 text-xs font-medium text-muted-foreground px-1">
               <div className="col-span-9">Produkt / tjänst</div>
@@ -588,13 +547,13 @@ export default function JobForm({
           )}
           {ovrigaKostnader.fields.map((field, i) => (
             <div key={field.id} className="grid grid-cols-12 gap-2 items-start">
-              <div className="col-span-9">
+              <div className="col-span-8 sm:col-span-9">
                 <Input
                   {...register(`ovrigaKostnader.${i}.beskrivning`)}
                   placeholder="T.ex. parkeringskostnad, hyrd utrustning..."
                 />
               </div>
-              <div className="col-span-2">
+              <div className="col-span-3 sm:col-span-2">
                 <Input
                   type="number"
                   step="0.01"
@@ -611,101 +570,29 @@ export default function JobForm({
                   size="icon"
                   variant="ghost"
                   onClick={() => ovrigaKostnader.remove(i)}
+                  aria-label="Ta bort kostnad"
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
             </div>
           ))}
-        </CardContent>
-      </Card>
+        </FormSubsection>
+      </FormSection>
 
-      {/* Resor */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <Van className="h-5 w-5 text-muted-foreground" />
-            Resor
-          </CardTitle>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => resor.append({ datum: idag(), stracka: 0 })}
-          >
-            <Plus className="mr-1 h-4 w-4" />
-            Lägg till resa
-          </Button>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {resor.fields.length > 0 && (
-            <div className="hidden sm:grid sm:grid-cols-12 gap-2 text-xs font-medium text-muted-foreground px-1">
-              <div className="col-span-5 flex items-center gap-1.5">
-                <Calendar className="h-3.5 w-3.5" />
-                Datum
-              </div>
-              <div className="col-span-6 flex items-center gap-1.5">
-                <MapPin className="h-3.5 w-3.5" />
-                Sträcka (km körd)
-              </div>
-              <div className="col-span-1" />
-            </div>
-          )}
-          {resor.fields.map((field, i) => (
-            <div key={field.id} className="grid grid-cols-12 gap-2 items-end">
-              <div className="col-span-7 sm:col-span-5 space-y-1">
-                <Label className="text-xs text-muted-foreground sm:hidden flex items-center gap-1">
-                  <Calendar className="h-3 w-3" />
-                  Datum
-                </Label>
-                <Input type="date" {...register(`resor.${i}.datum`)} />
-              </div>
-              <div className="col-span-4 sm:col-span-6 space-y-1">
-                <Label className="text-xs text-muted-foreground sm:hidden flex items-center gap-1">
-                  <MapPin className="h-3 w-3" />
-                  Sträcka (km)
-                </Label>
-                <Input
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  {...register(`resor.${i}.stracka`, { valueAsNumber: true })}
-                  placeholder="0"
-                />
-              </div>
-              <div className="col-span-1 flex justify-end">
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => resor.remove(i)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-
-      {/* Arbetstid */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <Clock className="h-5 w-5 text-muted-foreground" />
-            Arbetstid
-          </CardTitle>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => arbetstider.append({ datum: idag(), timmar: 0 })}
-          >
-            <Plus className="mr-1 h-4 w-4" />
-            Lägg till pass
-          </Button>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      {/* 3. Tid & resor */}
+      <FormSection icon={Clock} title="Tid & resor">
+        <FormSubsection
+          icon={Clock}
+          title="Arbetstid"
+          action={
+            <SekundarKnapp
+              onClick={() => arbetstider.append({ datum: idag(), timmar: 0 })}
+            >
+              <Plus className="h-4 w-4" /> Lägg till pass
+            </SekundarKnapp>
+          }
+        >
           {arbetstider.fields.length > 0 && (
             <div className="hidden sm:grid sm:grid-cols-12 gap-2 text-xs font-medium text-muted-foreground px-1">
               <div className="col-span-5 flex items-center gap-1.5">
@@ -749,27 +636,102 @@ export default function JobForm({
                   size="icon"
                   variant="ghost"
                   onClick={() => arbetstider.remove(i)}
+                  aria-label="Ta bort arbetspass"
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
             </div>
           ))}
-        </CardContent>
-      </Card>
+        </FormSubsection>
 
-      {/* Prissättning */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Receipt className="h-5 w-5 text-muted-foreground" />
-            Prissättning
-          </CardTitle>
-          <p className="text-xs text-muted-foreground">
-            Används för att räkna ut kostnader för arbetstid och resor.
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-4">
+        <FormSubsection
+          icon={Van}
+          title="Resor"
+          action={
+            <SekundarKnapp
+              onClick={() => resor.append({ datum: idag(), stracka: 0 })}
+            >
+              <Plus className="h-4 w-4" /> Lägg till resa
+            </SekundarKnapp>
+          }
+        >
+          {resor.fields.length > 0 && (
+            <div className="hidden sm:grid sm:grid-cols-12 gap-2 text-xs font-medium text-muted-foreground px-1">
+              <div className="col-span-5 flex items-center gap-1.5">
+                <Calendar className="h-3.5 w-3.5" />
+                Datum
+              </div>
+              <div className="col-span-6 flex items-center gap-1.5">
+                <MapPin className="h-3.5 w-3.5" />
+                Sträcka (km körd)
+              </div>
+              <div className="col-span-1" />
+            </div>
+          )}
+          {resor.fields.map((field, i) => (
+            <div key={field.id} className="grid grid-cols-12 gap-2 items-end">
+              <div className="col-span-7 sm:col-span-5 space-y-1">
+                <Label className="text-xs text-muted-foreground sm:hidden flex items-center gap-1">
+                  <Calendar className="h-3 w-3" />
+                  Datum
+                </Label>
+                <Input type="date" {...register(`resor.${i}.datum`)} />
+              </div>
+              <div className="col-span-4 sm:col-span-6 space-y-1">
+                <Label className="text-xs text-muted-foreground sm:hidden flex items-center gap-1">
+                  <MapPin className="h-3 w-3" />
+                  Sträcka (km)
+                </Label>
+                <Input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  {...register(`resor.${i}.stracka`, { valueAsNumber: true })}
+                  placeholder="0"
+                />
+              </div>
+              <div className="col-span-1 flex justify-end">
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => resor.remove(i)}
+                  aria-label="Ta bort resa"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </FormSubsection>
+      </FormSection>
+
+      {/* 4. Utfört */}
+      <FormSection icon={Wrench} title="Utfört">
+        <FormSubsection icon={Wrench} title="Utfört arbete">
+          <Textarea
+            rows={4}
+            {...register("utfortArbete")}
+            placeholder="Beskriv vad som har gjorts i projektet..."
+          />
+        </FormSubsection>
+        <FormSubsection icon={NotebookPen} title="Övriga anteckningar">
+          <Textarea
+            rows={4}
+            {...register("anteckningar")}
+            placeholder="T.ex. tillval, garanti, kommande arbete..."
+          />
+        </FormSubsection>
+      </FormSection>
+
+      {/* 5. Pris & faktura */}
+      <FormSection icon={Receipt} title="Pris & faktura">
+        <FormSubsection
+          icon={Receipt}
+          title="Prissättning"
+          description="Används för att räkna ut kostnader för arbetstid och resor."
+        >
           <div className="grid gap-4 sm:grid-cols-2">
             <Field
               label="Timpris (kr/h)"
@@ -796,7 +758,7 @@ export default function JobForm({
               />
             </Field>
           </div>
-          <div className="border-t pt-4 space-y-3">
+          <div className="space-y-3 pt-1">
             <ToggleRow
               id="fast-pris"
               label="Fakturera fast pris (åsidosätter beräknad summa på fakturan)"
@@ -826,104 +788,83 @@ export default function JobForm({
               </Field>
             )}
           </div>
-        </CardContent>
-      </Card>
+        </FormSubsection>
 
-      {/* Status */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ClipboardList className="h-5 w-5 text-muted-foreground" />
-            Hantverkarens status
-          </CardTitle>
-          <p className="text-xs text-muted-foreground">
-            Välj aktuell status för jobbet.
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <ToggleRow
-            id="ej-paborjat"
-            label="Ej påbörjat"
-            checked={!(live.pagaende ?? false) && !(live.utfort ?? false)}
-            onChange={() => {
-              setValue("pagaende", false, { shouldDirty: true });
-              setValue("utfort", false, { shouldDirty: true });
-            }}
-          />
-          <ToggleRow
-            id="pagaende"
-            label="Pågående"
-            checked={(live.pagaende ?? false) && !(live.utfort ?? false)}
-            onChange={() => {
-              setValue("pagaende", true, { shouldDirty: true });
-              setValue("utfort", false, { shouldDirty: true });
-            }}
-          />
-          <ToggleRow
-            id="utfort"
-            label="Jobb utfört och klart"
-            checked={live.utfort ?? false}
-            onChange={() => {
-              setValue("utfort", true, { shouldDirty: true });
-              setValue("pagaende", false, { shouldDirty: true });
-            }}
-          />
-        </CardContent>
-      </Card>
+        <FormSubsection
+          icon={ClipboardList}
+          title="Status"
+          description="Välj aktuell status för jobbet."
+        >
+          <div className="space-y-3">
+            <ToggleRow
+              id="ej-paborjat"
+              label="Ej påbörjat"
+              checked={!(live.pagaende ?? false) && !(live.utfort ?? false)}
+              onChange={() => {
+                setValue("pagaende", false, { shouldDirty: true });
+                setValue("utfort", false, { shouldDirty: true });
+              }}
+            />
+            <ToggleRow
+              id="pagaende"
+              label="Pågående"
+              checked={(live.pagaende ?? false) && !(live.utfort ?? false)}
+              onChange={() => {
+                setValue("pagaende", true, { shouldDirty: true });
+                setValue("utfort", false, { shouldDirty: true });
+              }}
+            />
+            <ToggleRow
+              id="utfort"
+              label="Jobb utfört och klart"
+              checked={live.utfort ?? false}
+              onChange={() => {
+                setValue("utfort", true, { shouldDirty: true });
+                setValue("pagaende", false, { shouldDirty: true });
+              }}
+            />
+          </div>
+        </FormSubsection>
 
-      {/* Fakturering */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CreditCard className="h-5 w-5 text-muted-foreground" />
-            Faktura &amp; betalning
-          </CardTitle>
-          <p className="text-xs text-muted-foreground">
-            Bockas av den som sköter fakturering och bokföring.
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <ToggleRow
-            id="rot"
-            label="ROT-avdrag ska tillämpas"
-            checked={live.rotAvdrag ?? false}
-            onChange={(v) => setValue("rotAvdrag", v, { shouldDirty: true })}
-          />
-          <ToggleRow
-            id="fakturerat"
-            label="Fakturerat"
-            checked={live.fakturerat ?? false}
-            onChange={(v) => setValue("fakturerat", v, { shouldDirty: true })}
-          />
-          <ToggleRow
-            id="betalt"
-            label="Betalt"
-            checked={live.betalt ?? false}
-            onChange={(v) => setValue("betalt", v, { shouldDirty: true })}
-          />
-        </CardContent>
-      </Card>
-
-      {/* Anteckningar */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <NotebookPen className="h-5 w-5 text-muted-foreground" />
-            Övriga anteckningar
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Textarea
-            rows={4}
-            {...register("anteckningar")}
-            placeholder="T.ex. tillval, garanti, kommande arbete..."
-          />
-        </CardContent>
-      </Card>
+        <FormSubsection
+          icon={CreditCard}
+          title="Faktura & betalning"
+          description="Bockas av den som sköter fakturering och bokföring."
+        >
+          <div className="space-y-3">
+            <ToggleRow
+              id="rot"
+              label="ROT-avdrag ska tillämpas"
+              checked={live.rotAvdrag ?? false}
+              onChange={(v) =>
+                setValue("rotAvdrag", v, { shouldDirty: true })
+              }
+            />
+            <ToggleRow
+              id="fakturerat"
+              label="Fakturerat"
+              checked={live.fakturerat ?? false}
+              onChange={(v) =>
+                setValue("fakturerat", v, { shouldDirty: true })
+              }
+            />
+            <ToggleRow
+              id="betalt"
+              label="Betalt"
+              checked={live.betalt ?? false}
+              onChange={(v) => setValue("betalt", v, { shouldDirty: true })}
+            />
+          </div>
+        </FormSubsection>
+      </FormSection>
 
       {/* Summering */}
-      <Card className="border-primary/30">
-        <CardContent className="pt-6 space-y-2 text-sm">
+      <FormSection
+        icon={Calculator}
+        title="Summering"
+        className="border-primary/30"
+      >
+        <div className="space-y-2 text-sm">
           {live.artiklar?.some((a) => !a.pris) && (
             <p className="text-xs text-amber-600 dark:text-amber-400 font-medium pb-1 flex items-center gap-1.5">
               <TriangleAlert className="h-3.5 w-3.5" />
@@ -934,50 +875,30 @@ export default function JobForm({
           <SumRow
             label="Artiklar"
             icon={<Package className="h-3.5 w-3.5" />}
-            value={summering.artiklarSum.toLocaleString("sv-SE", {
-              style: "currency",
-              currency: "SEK",
-              maximumFractionDigits: 0,
-            })}
+            value={sek(summering.artiklarSum)}
           />
           {summering.ovrigaSum > 0 && (
             <SumRow
               label="Övriga kostnader"
               icon={<StickyNote className="h-3.5 w-3.5" />}
-              value={summering.ovrigaSum.toLocaleString("sv-SE", {
-                style: "currency",
-                currency: "SEK",
-                maximumFractionDigits: 0,
-              })}
+              value={sek(summering.ovrigaSum)}
             />
           )}
           <SumRow
             label={`Arbetstid (${summering.totalTimmar} h × ${summering.timpris} kr/h)`}
             icon={<Clock className="h-3.5 w-3.5" />}
-            value={summering.arbetstidSum.toLocaleString("sv-SE", {
-              style: "currency",
-              currency: "SEK",
-              maximumFractionDigits: 0,
-            })}
+            value={sek(summering.arbetstidSum)}
           />
           <SumRow
             label={`Resor (${summering.totalStracka} km × ${summering.milersattning} kr/km)`}
             icon={<Van className="h-3.5 w-3.5" />}
-            value={summering.resorSum.toLocaleString("sv-SE", {
-              style: "currency",
-              currency: "SEK",
-              maximumFractionDigits: 0,
-            })}
+            value={sek(summering.resorSum)}
           />
           <Separator />
           <SumRow
             label="Totalt exkl. moms"
             icon={<Receipt className="h-3.5 w-3.5" />}
-            value={summering.totalExklMoms.toLocaleString("sv-SE", {
-              style: "currency",
-              currency: "SEK",
-              maximumFractionDigits: 0,
-            })}
+            value={sek(summering.totalExklMoms)}
           />
           {live.rotAvdrag && (
             <>
@@ -988,8 +909,8 @@ export default function JobForm({
               </p>
             </>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </FormSection>
 
       <div className="flex justify-end">
         <Button type="submit" size="lg" disabled={isPending}>
@@ -1007,6 +928,7 @@ export default function JobForm({
               type="button"
               className="absolute -top-10 right-0 text-white"
               onClick={() => setValdBild(null)}
+              aria-label="Stäng bild"
             >
               <X className="h-6 w-6" />
             </button>
@@ -1022,29 +944,6 @@ export default function JobForm({
         </div>
       )}
     </form>
-  );
-}
-
-function Field({
-  label,
-  icon,
-  error,
-  children,
-}: {
-  label: string;
-  icon?: React.ReactNode;
-  error?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <Label className="flex items-center gap-1.5">
-        {icon && <span className="text-muted-foreground">{icon}</span>}
-        {label}
-      </Label>
-      {children}
-      {error && <p className="text-xs text-destructive">{error}</p>}
-    </div>
   );
 }
 

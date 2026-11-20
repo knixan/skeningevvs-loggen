@@ -32,7 +32,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Field,
+  FormSection,
+  SekundarKnapp,
+} from "@/components/minasidor/formular";
 
 interface CompanySettings extends CompanyInput {
   id: string;
@@ -128,18 +132,12 @@ export default function CompanySettingsForm({ company }: Props) {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       {/* Logotyp */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ImagePlus className="h-5 w-5 text-muted-foreground" />
-            Logotyp
-          </CardTitle>
-          <p className="text-xs text-muted-foreground">
-            Visas på fakturor och PDF-underlag. Om ingen logotyp laddas upp
-            visas företagsnamnet istället.
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-3">
+      <FormSection
+        icon={ImagePlus}
+        title="Logotyp"
+        description="Visas på fakturor och PDF-underlag. Om ingen logotyp laddas upp visas företagsnamnet istället."
+      >
+        <div className="space-y-3">
           <input
             ref={fileInputRef}
             type="file"
@@ -150,7 +148,7 @@ export default function CompanySettingsForm({ company }: Props) {
 
           {logo ? (
             <div className="flex items-center gap-4">
-              <div className="relative h-20 w-20 overflow-hidden rounded-md border bg-muted">
+              <div className="relative h-20 w-20 overflow-hidden rounded-lg border bg-muted">
                 <Image
                   src={logo.url}
                   alt="Företagslogotyp"
@@ -160,15 +158,12 @@ export default function CompanySettingsForm({ company }: Props) {
                 />
               </div>
               <div className="flex flex-col gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
+                <SekundarKnapp
                   disabled={laddarUppLogga}
                   onClick={() => fileInputRef.current?.click()}
                 >
                   {laddarUppLogga ? "Laddar upp..." : "Byt logotyp"}
-                </Button>
+                </SekundarKnapp>
                 <Button
                   type="button"
                   variant="ghost"
@@ -182,29 +177,20 @@ export default function CompanySettingsForm({ company }: Props) {
               </div>
             </div>
           ) : (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
+            <SekundarKnapp
               disabled={laddarUppLogga}
               onClick={() => fileInputRef.current?.click()}
             >
-              <ImagePlus className="mr-1 h-4 w-4" />
+              <ImagePlus className="h-4 w-4" />
               {laddarUppLogga ? "Laddar upp..." : "Ladda upp logotyp"}
-            </Button>
+            </SekundarKnapp>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </FormSection>
 
       {/* Företagsuppgifter */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Building2 className="h-5 w-5 text-muted-foreground" />
-            Företagsuppgifter
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
+      <FormSection icon={Building2} title="Företagsuppgifter">
+        <div className="grid gap-4 sm:grid-cols-2">
           <Field
             label="Företagsnamn"
             icon={<Building2 className="h-3.5 w-3.5" />}
@@ -269,22 +255,16 @@ export default function CompanySettingsForm({ company }: Props) {
               Innehar F-skatt
             </Label>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </FormSection>
 
       {/* Betalningsuppgifter */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CreditCard className="h-5 w-5 text-muted-foreground" />
-            Betalningsuppgifter
-          </CardTitle>
-          <p className="text-xs text-muted-foreground">
-            Fyll i de betalsätt du erbjuder kunder. Lämna tomt om de inte
-            används.
-          </p>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-3">
+      <FormSection
+        icon={CreditCard}
+        title="Betalningsuppgifter"
+        description="Fyll i de betalsätt du erbjuder kunder. Lämna tomt om de inte används."
+      >
+        <div className="grid gap-4 sm:grid-cols-3">
           <Field label="Bankgiro" icon={<Banknote className="h-3.5 w-3.5" />}>
             <Input {...register("bankgiro")} placeholder="123-4567" />
           </Field>
@@ -299,18 +279,12 @@ export default function CompanySettingsForm({ company }: Props) {
           >
             <Input {...register("swish")} placeholder="123 456 78 90" />
           </Field>
-        </CardContent>
-      </Card>
+        </div>
+      </FormSection>
 
       {/* Fakturainställningar */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-muted-foreground" />
-            Fakturainställningar
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <FormSection icon={FileText} title="Fakturainställningar">
+        <div className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-3">
             <Field
               label="Nästa fakturanummer"
@@ -363,8 +337,8 @@ export default function CompanySettingsForm({ company }: Props) {
               placeholder="T.ex. Tack för att du anlitade oss! Vid frågor om fakturan, kontakta oss på..."
             />
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </FormSection>
 
       <div className="flex justify-end">
         <Button type="submit" size="lg" disabled={isPending}>
@@ -372,28 +346,5 @@ export default function CompanySettingsForm({ company }: Props) {
         </Button>
       </div>
     </form>
-  );
-}
-
-function Field({
-  label,
-  icon,
-  error,
-  children,
-}: {
-  label: string;
-  icon?: React.ReactNode;
-  error?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <Label className="flex items-center gap-1.5">
-        {icon && <span className="text-muted-foreground">{icon}</span>}
-        {label}
-      </Label>
-      {children}
-      {error && <p className="text-xs text-destructive">{error}</p>}
-    </div>
   );
 }

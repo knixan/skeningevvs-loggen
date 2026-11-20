@@ -43,7 +43,7 @@ export function RegisterForm() {
   }
 
   return (
-    <Card className="w-full max-w-md">
+    <Card className="w-full max-w-md rounded-2xl shadow-xs">
       <CardHeader>
         <CardTitle className="text-2xl">Skapa konto</CardTitle>
       </CardHeader>

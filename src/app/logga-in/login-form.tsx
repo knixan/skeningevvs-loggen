@@ -37,7 +37,7 @@ export function LoginForm() {
   }
 
   return (
-    <Card className="w-full max-w-md">
+    <Card className="w-full max-w-md rounded-2xl shadow-xs">
           <Image
                 src="/skeningevvs-faktura-logga.png"
                 alt="KnegarLoggen"

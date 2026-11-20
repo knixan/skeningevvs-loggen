@@ -2,20 +2,17 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { KeyRound } from "lucide-react";
+import { KeyRound, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field, FormSection } from "@/components/minasidor/formular";
 import authClient from "@/lib/auth-client";
 import DeleteAccountButton from "./delete-account-button";
 
 export default function InstallningarKlient() {
   return (
-    <div className="space-y-8 max-w-xl">
+    <div className="space-y-6 max-w-xl">
       <BytLosenordForm />
-      <Separator />
       <FarligZonSection />
     </div>
   );
@@ -59,17 +56,9 @@ function BytLosenordForm() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <KeyRound className="h-4 w-4" />
-          Byt lösenord
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
+    <FormSection icon={KeyRound} title="Byt lösenord">
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="nuvarande">Nuvarande lösenord</Label>
+          <Field label="Nuvarande lösenord" htmlFor="nuvarande">
             <Input
               id="nuvarande"
               type="password"
@@ -78,9 +67,8 @@ function BytLosenordForm() {
               onChange={(e) => setNuvarandeLosenord(e.target.value)}
               required
             />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="nytt">Nytt lösenord</Label>
+          </Field>
+          <Field label="Nytt lösenord" htmlFor="nytt">
             <Input
               id="nytt"
               type="password"
@@ -90,9 +78,8 @@ function BytLosenordForm() {
               required
             />
             <p className="text-xs text-muted-foreground">Minst 8 tecken</p>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="bekrafta">Bekräfta nytt lösenord</Label>
+          </Field>
+          <Field label="Bekräfta nytt lösenord" htmlFor="bekrafta">
             <Input
               id="bekrafta"
               type="password"
@@ -101,27 +88,24 @@ function BytLosenordForm() {
               onChange={(e) => setBekraftaLosenord(e.target.value)}
               required
             />
-          </div>
+          </Field>
           <Button type="submit" disabled={isPending}>
             {isPending ? "Sparar..." : "Byt lösenord"}
           </Button>
         </form>
-      </CardContent>
-    </Card>
+    </FormSection>
   );
 }
 
 function FarligZonSection() {
   return (
-    <div className="space-y-2">
-      <p className="text-sm font-medium text-destructive">Farlig zon</p>
-      <p className="text-xs text-muted-foreground">
-        Raderar ditt konto, alla jobb, kunder, bilder och företagsuppgifter
-        permanent.
-      </p>
-      <div className="mt-2">
-        <DeleteAccountButton />
-      </div>
-    </div>
+    <FormSection
+      icon={TriangleAlert}
+      title="Farlig zon"
+      tone="destructive"
+      description="Raderar ditt konto, alla jobb, kunder, bilder och företagsuppgifter permanent."
+    >
+      <DeleteAccountButton />
+    </FormSection>
   );
 }

@@ -25,8 +25,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field, FormSection } from "@/components/minasidor/formular";
 
 type CustomerFormInput = z.input<typeof customerSchema>;
 type CustomerFormOutput = z.output<typeof customerSchema>;
@@ -88,14 +87,8 @@ export default function CustomerForm({ defaultValues, mode }: Props) {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       {/* Typ */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5 text-muted-foreground" />
-            Kundtyp
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="flex gap-4">
+      <FormSection icon={Users} title="Kundtyp">
+        <div className="flex gap-4">
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="radio"
@@ -114,18 +107,15 @@ export default function CustomerForm({ defaultValues, mode }: Props) {
             />
             <span className="text-sm font-medium">Företagskund</span>
           </label>
-        </CardContent>
-      </Card>
+        </div>
+      </FormSection>
 
       {/* Kontaktuppgifter */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <User className="h-5 w-5 text-muted-foreground" />
-            {arPrivat ? "Personuppgifter" : "Företagsuppgifter"}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
+      <FormSection
+        icon={arPrivat ? User : Building2}
+        title={arPrivat ? "Personuppgifter" : "Företagsuppgifter"}
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
           <Field
             label="Namn *"
             icon={<User className="h-3.5 w-3.5" />}
@@ -199,18 +189,12 @@ export default function CustomerForm({ defaultValues, mode }: Props) {
               placeholder="anna@exempel.se"
             />
           </Field>
-        </CardContent>
-      </Card>
+        </div>
+      </FormSection>
 
       {/* Adress */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <MapPinned className="h-5 w-5 text-muted-foreground" />
-            Adress
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
+      <FormSection icon={MapPinned} title="Adress">
+        <div className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <Field
               label="Gatuadress"
@@ -228,21 +212,16 @@ export default function CustomerForm({ defaultValues, mode }: Props) {
           <Field label="Ort" icon={<MapPinned className="h-3.5 w-3.5" />}>
             <Input {...register("ort")} placeholder="Stockholm" />
           </Field>
-        </CardContent>
-      </Card>
+        </div>
+      </FormSection>
 
       {/* ROT-uppgifter */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Home className="h-5 w-5 text-muted-foreground" />
-            ROT-uppgifter
-          </CardTitle>
-          <p className="text-xs text-muted-foreground">
-            Fyll i om kunden kan nyttja ROT-avdrag.
-          </p>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
+      <FormSection
+        icon={Home}
+        title="ROT-uppgifter"
+        description="Fyll i om kunden kan nyttja ROT-avdrag."
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
           <Field
             label="Fastighetsbeteckning"
             icon={<Home className="h-3.5 w-3.5" />}
@@ -266,8 +245,8 @@ export default function CustomerForm({ defaultValues, mode }: Props) {
               />
             </Field>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </FormSection>
 
       <div className="flex justify-between">
         <Button type="button" variant="outline" onClick={() => router.back()}>
@@ -282,28 +261,5 @@ export default function CustomerForm({ defaultValues, mode }: Props) {
         </Button>
       </div>
     </form>
-  );
-}
-
-function Field({
-  label,
-  icon,
-  error,
-  children,
-}: {
-  label: string;
-  icon?: React.ReactNode;
-  error?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <Label className="flex items-center gap-1.5">
-        {icon && <span className="text-muted-foreground">{icon}</span>}
-        {label}
-      </Label>
-      {children}
-      {error && <p className="text-xs text-destructive">{error}</p>}
-    </div>
   );
 }
