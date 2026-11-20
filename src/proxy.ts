@@ -12,18 +12,13 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (
-    (pathname === "/logga-in" || pathname === "/registrera") &&
-    sessionCookie
-  ) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/mina-sidor";
-    return NextResponse.redirect(url);
-  }
-
+  // Skicka INTE vidare från /logga-in till /mina-sidor bara för att cookien
+  // finns: en utgången eller ogiltig cookie gav då en oändlig loop
+  // (/mina-sidor → /logga-in → /mina-sidor …). Inloggningssidorna kontrollerar
+  // i stället sessionen på riktigt med getSession.
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/mina-sidor/:path*", "/logga-in", "/registrera"],
+  matcher: ["/mina-sidor/:path*"],
 };
