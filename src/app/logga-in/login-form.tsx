@@ -28,7 +28,21 @@ export function LoginForm() {
     setLoading(false);
 
     if (result.error) {
-      setError("Fel e-post eller lösenord.");
+      // Visa "fel lösenord" bara när det verkligen är det – andra fel (t.ex.
+      // fel adress/origin eller för många försök) ska inte se likadana ut.
+      if (result.error.code === "INVALID_EMAIL_OR_PASSWORD") {
+        setError("Fel e-post eller lösenord.");
+      } else if (result.error.code === "INVALID_ORIGIN") {
+        setError(
+          `Inloggning är inte tillåten från ${window.location.origin}. Öppna appen via adressen i BETTER_AUTH_URL.`,
+        );
+      } else if (result.error.status === 429) {
+        setError("För många försök. Vänta en stund och försök igen.");
+      } else {
+        setError(
+          `Inloggningen misslyckades (${result.error.status}): ${result.error.message ?? "okänt fel"}`,
+        );
+      }
       return;
     }
 
