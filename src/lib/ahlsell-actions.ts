@@ -149,6 +149,75 @@ export async function slutforAhlsellImport(
   return { ok: true as const };
 }
 
+// ============================================================
+// NYTT AVTAL PÅ BEFINTLIG PRISLISTA
+// ============================================================
+//
+// Grundpriserna ligger redan sparade, så ett nytt avtal kan läsas in utan
+// att beräkningsgrunden väljs igen. Klienten hämtar den aktiva listan i delar,
+// räknar om nettopriserna med det nya avtalet och sparar resultatet som en ny
+// inläsning (paborja → sparaDel → slutfor). Den gamla listan gäller tills den
+// nya är klar.
+
+const hamtaSchema = z.object({
+  importId: z.uuid().nullable(),
+  efterId: z.string().max(40).nullable(),
+});
+
+export async function hamtaAhlsellGrundpriser(
+  importId: string | null,
+  efterId: string | null,
+) {
+  const ctx = await requireExistingCompany();
+  if ("error" in ctx) return ctx;
+  const { company } = ctx;
+
+  const parsed = hamtaSchema.safeParse({ importId, efterId });
+  if (!parsed.success) {
+    return { ok: false as const, error: "Ogiltig förfrågan" };
+  }
+  if (!company.ahlsellImportId) {
+    return {
+      ok: false as const,
+      error: "Ingen prislista inläst – välj beräkningsgrunden också",
+    };
+  }
+  // Första anropet låser fast vilken lista som läses; byts den mitt i
+  // (t.ex. en inläsning i en annan flik) avbryts det i stället för att blanda.
+  const aktiv = company.ahlsellImportId;
+  if (parsed.data.importId && parsed.data.importId !== aktiv) {
+    return {
+      ok: false as const,
+      error: "Prislistan ändrades under inläsningen. Försök igen.",
+    };
+  }
+
+  try {
+    const rader = await prisma.ahlsellArtikel.findMany({
+      where: {
+        companyId: company.id,
+        importId: aktiv,
+        ...(parsed.data.efterId ? { id: { gt: parsed.data.efterId } } : {}),
+      },
+      orderBy: { id: "asc" },
+      take: AHLSELL_DELSTORLEK,
+      select: {
+        id: true,
+        artikelnr: true,
+        benamning: true,
+        enhet: true,
+        materialklass: true,
+        lagerford: true,
+        bestallningsmultipel: true,
+        grundprisOre: true,
+      },
+    });
+    return { ok: true as const, importId: aktiv, rader };
+  } catch {
+    return { ok: false as const, error: "Kunde inte läsa den sparade prislistan" };
+  }
+}
+
 export async function rensaAhlsellPrislista() {
   const ctx = await requireExistingCompany();
   if ("error" in ctx) return ctx;

@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { FileText, Percent, Store, Trash2, Upload } from "lucide-react";
+import { FileText, Info, Percent, Store, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -18,8 +18,11 @@ import {
   formateraAvtalsdatum,
   tolkaAvtalsfil,
   tolkaBerakningsgrund,
+  type GrundRad,
 } from "@/lib/ahlsell";
+import { idag } from "@/lib/datum";
 import {
+  hamtaAhlsellGrundpriser,
   paborjaAhlsellImport,
   rensaAhlsellPrislista,
   slutforAhlsellImport,
@@ -56,23 +59,71 @@ function InlasningForm({ status }: { status: AhlsellStatus }) {
   const avtalRef = useRef<HTMLInputElement>(null);
   const [grundFil, setGrundFil] = useState<File | null>(null);
   const [avtalFil, setAvtalFil] = useState<File | null>(null);
-  const [framsteg, setFramsteg] = useState<{ klara: number; totalt: number } | null>(null);
+  const [framsteg, setFramsteg] = useState<{
+    fas: "hamtar" | "sparar";
+    klara: number;
+    totalt: number;
+  } | null>(null);
   const [tarBort, startTaBort] = useTransition();
   const laser = framsteg !== null;
+  const harPrislista = status.importeradVid !== null;
+  // Bara avtalsfil vald → avtalet läggs på grundpriserna som redan är sparade
+  const endastAvtal = !grundFil && avtalFil !== null && harPrislista;
+  const kanLasaIn = grundFil !== null || endastAvtal;
+
+  /** Hämtar den sparade listans grundpriser i delar, eller null vid fel. */
+  async function hamtaSparadeGrundpriser(): Promise<GrundRad[] | null> {
+    const artiklar: GrundRad[] = [];
+    let importId: string | null = null;
+    let efterId: string | null = null;
+    setFramsteg({ fas: "hamtar", klara: 0, totalt: status.antalArtiklar });
+    for (;;) {
+      const res = await hamtaAhlsellGrundpriser(importId, efterId);
+      if (!res.ok) {
+        toast.error(res.error);
+        return null;
+      }
+      importId = res.importId;
+      for (const r of res.rader) {
+        artiklar.push({
+          artikelnr: r.artikelnr,
+          benamning: r.benamning,
+          enhet: r.enhet,
+          materialklass: r.materialklass,
+          lagerford: r.lagerford,
+          bestallningsmultipel: r.bestallningsmultipel,
+          grundprisOre: r.grundprisOre,
+        });
+      }
+      setFramsteg({
+        fas: "hamtar",
+        klara: artiklar.length,
+        totalt: Math.max(status.antalArtiklar, artiklar.length),
+      });
+      if (res.rader.length < AHLSELL_DELSTORLEK) return artiklar;
+      efterId = res.rader[res.rader.length - 1].id;
+    }
+  }
 
   async function lasIn() {
-    if (!grundFil) {
+    if (!kanLasaIn) {
       toast.error("Välj filen med beräkningsgrund");
       return;
     }
-    setFramsteg({ klara: 0, totalt: 0 });
+    setFramsteg({ fas: "sparar", klara: 0, totalt: 0 });
     try {
-      const grund = tolkaBerakningsgrund(avkodaAnsi(await grundFil.arrayBuffer()));
-      if (grund.artiklar.length === 0) {
-        toast.error(
-          "Hittade inga artiklar i filen. Är det beräkningsgrunden (textfil) från Ahlsell?",
-        );
-        return;
+      let grundartiklar: GrundRad[];
+      if (grundFil) {
+        const grund = tolkaBerakningsgrund(avkodaAnsi(await grundFil.arrayBuffer()));
+        if (grund.artiklar.length === 0) {
+          toast.error(
+            "Hittade inga artiklar i filen. Är det beräkningsgrunden (textfil) från Ahlsell?",
+          );
+          return;
+        }
+        grundartiklar = grund.artiklar;
+      } else {
+        grundartiklar = [];
       }
       const avtal = avtalFil
         ? tolkaAvtalsfil(avkodaAnsi(await avtalFil.arrayBuffer()))
@@ -82,8 +133,20 @@ function InlasningForm({ status }: { status: AhlsellStatus }) {
         return;
       }
 
-      const rader = beraknaPrislista(grund.artiklar, avtal);
-      setFramsteg({ klara: 0, totalt: rader.length });
+      // Avtalsfilen kontrolleras först, så en felaktig fil inte hämtar hela
+      // listan i onödan.
+      if (!grundFil) {
+        const sparade = await hamtaSparadeGrundpriser();
+        if (!sparade) return;
+        if (sparade.length === 0) {
+          toast.error("Den sparade prislistan är tom – välj beräkningsgrunden också");
+          return;
+        }
+        grundartiklar = sparade;
+      }
+
+      const rader = beraknaPrislista(grundartiklar, avtal);
+      setFramsteg({ fas: "sparar", klara: 0, totalt: rader.length });
 
       const start = await paborjaAhlsellImport();
       if (!start.ok) {
@@ -98,7 +161,7 @@ function InlasningForm({ status }: { status: AhlsellStatus }) {
           toast.error(`${res.error}. Den tidigare prislistan gäller fortfarande.`);
           return;
         }
-        setFramsteg({ klara: i + del.length, totalt: rader.length });
+        setFramsteg({ fas: "sparar", klara: i + del.length, totalt: rader.length });
       }
 
       const klar = await slutforAhlsellImport(start.importId, {
@@ -111,8 +174,10 @@ function InlasningForm({ status }: { status: AhlsellStatus }) {
       }
 
       toast.success(
-        `${tal(rader.length)} artiklar inlästa` +
-          (avtal ? " med era avtalspriser" : " (grundpriser, utan avtal)"),
+        endastAvtal
+          ? `Nytt avtal inläst – ${tal(rader.length)} priser uppdaterade`
+          : `${tal(rader.length)} artiklar inlästa` +
+              (avtal ? " med era avtalspriser" : " (grundpriser, utan avtal)"),
       );
       setGrundFil(null);
       setAvtalFil(null);
@@ -142,6 +207,7 @@ function InlasningForm({ status }: { status: AhlsellStatus }) {
   }
 
   const slutdatum = formateraAvtalsdatum(status.avtalSlutdatum);
+  const avtalUtgatt = status.avtalInlast && slutdatum !== "" && slutdatum < idag();
 
   return (
     <FormSubsection
@@ -150,8 +216,9 @@ function InlasningForm({ status }: { status: AhlsellStatus }) {
       description={
         <>
           Hämta filerna under Mina sidor på ahlsell.se: <b>beräkningsgrund</b>{" "}
-          (artiklar och grundpriser) och <b>avtalsfil</b> (Beställ avtal → ert
-          kundavtal). Utan avtalsfil används grundpriset, före era rabatter.
+          (Priser &amp; villkor – textfilen i zip-filen) och <b>avtalsfil</b>{" "}
+          (Beställ avtal → Kundavtal, kommer via e-post). Utan avtalsfil används
+          grundpriset, före era rabatter.
         </>
       }
     >
@@ -167,6 +234,11 @@ function InlasningForm({ status }: { status: AhlsellStatus }) {
                 ? `Med era avtalspriser${slutdatum ? ` · avtalet gäller t.o.m. ${slutdatum}` : ""}`
                 : "Grundpriser – ingen avtalsfil inläst"}
             </p>
+            {avtalUtgatt && (
+              <p className="text-xs font-medium text-destructive mt-1">
+                Avtalet har gått ut – beställ en ny avtalsfil och läs in den.
+              </p>
+            )}
           </>
         ) : (
           <p className="text-muted-foreground">Ingen prislista inläst ännu.</p>
@@ -174,7 +246,10 @@ function InlasningForm({ status }: { status: AhlsellStatus }) {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Beräkningsgrund (krävs)" htmlFor="ahlsell-grund">
+        <Field
+          label={harPrislista ? "Beräkningsgrund" : "Beräkningsgrund (krävs)"}
+          htmlFor="ahlsell-grund"
+        >
           <Input
             ref={grundRef}
             id="ahlsell-grund"
@@ -184,7 +259,7 @@ function InlasningForm({ status }: { status: AhlsellStatus }) {
             onChange={(e) => setGrundFil(e.target.files?.[0] ?? null)}
           />
         </Field>
-        <Field label="Avtalsfil (valfri)" htmlFor="ahlsell-avtal">
+        <Field label="Avtalsfil" htmlFor="ahlsell-avtal">
           <Input
             ref={avtalRef}
             id="ahlsell-avtal"
@@ -196,10 +271,24 @@ function InlasningForm({ status }: { status: AhlsellStatus }) {
         </Field>
       </div>
 
+      <div className="flex gap-2.5 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-xs text-sky-950 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-100">
+        <Info className="size-4 shrink-0 mt-px" aria-hidden />
+        <div className="space-y-1">
+          <p className="font-medium">Kom ihåg att läsa in nya filer när något ändras</p>
+          <p>
+            När avtalet förnyas, ändras eller går ut: beställ en ny avtalsfil och
+            läs in den här. Det räcker att välja avtalsfilen – den ersätter det
+            gamla avtalet och grundpriserna ligger kvar. När Ahlsell ändrar sina
+            priser (t.ex. vid årsskiftet) behövs en ny beräkningsgrund; välj då
+            båda filerna. Du behöver inte ta bort den gamla listan först.
+          </p>
+        </div>
+      </div>
+
       <div className="flex flex-wrap items-center gap-3">
-        <Button type="button" onClick={lasIn} disabled={laser || !grundFil}>
+        <Button type="button" onClick={lasIn} disabled={laser || !kanLasaIn}>
           <Upload className="h-4 w-4" />
-          {laser ? "Läser in..." : "Läs in prislista"}
+          {laser ? "Läser in..." : endastAvtal ? "Läs in avtal" : "Läs in prislista"}
         </Button>
         {status.importeradVid && !laser && (
           <Button
@@ -212,6 +301,11 @@ function InlasningForm({ status }: { status: AhlsellStatus }) {
             Ta bort prislista
           </Button>
         )}
+        {!laser && !kanLasaIn && avtalFil && (
+          <p className="text-xs text-muted-foreground">
+            Ingen prislista finns ännu – välj beräkningsgrunden också.
+          </p>
+        )}
       </div>
 
       {framsteg && framsteg.totalt > 0 && (
@@ -223,8 +317,8 @@ function InlasningForm({ status }: { status: AhlsellStatus }) {
             />
           </div>
           <p className="text-xs text-muted-foreground">
-            Sparar {tal(framsteg.klara)} av {tal(framsteg.totalt)} artiklar – stäng
-            inte sidan.
+            {framsteg.fas === "hamtar" ? "Hämtar" : "Sparar"} {tal(framsteg.klara)} av{" "}
+            {tal(framsteg.totalt)} artiklar – stäng inte sidan.
           </p>
         </div>
       )}
