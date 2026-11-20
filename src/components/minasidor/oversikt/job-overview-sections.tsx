@@ -192,14 +192,31 @@ export function MaterialSection({ job }: { job: Job }) {
 }
 
 export function NotesSection({ job }: { job: Job }) {
-  if (!job.anteckningar) return null;
+  if (!job.anteckningar && !job.internaAnteckningar) return null;
 
   return (
-    <section className="space-y-2 border-t pt-2">
-      <h4 className="flex items-center gap-2 text-sm font-semibold">
-        <NotebookPen className="h-4 w-4" /> Interna anteckningar
-      </h4>
-      <p className="whitespace-pre-wrap text-sm">{job.anteckningar}</p>
-    </section>
+    <>
+      {job.anteckningar && (
+        <section className="space-y-2 border-t pt-2">
+          <h4 className="flex items-center gap-2 text-sm font-semibold">
+            <NotebookPen className="h-4 w-4" /> Övrigt
+          </h4>
+          <p className="whitespace-pre-wrap text-sm">{job.anteckningar}</p>
+        </section>
+      )}
+      {job.internaAnteckningar && (
+        <section className="space-y-2 border-t pt-2">
+          <h4 className="flex items-center gap-2 text-sm font-semibold">
+            <NotebookPen className="h-4 w-4" /> Anteckningar
+            <span className="text-xs font-normal text-muted-foreground">
+              (visas ej för kunden)
+            </span>
+          </h4>
+          <p className="whitespace-pre-wrap text-sm">
+            {job.internaAnteckningar}
+          </p>
+        </section>
+      )}
+    </>
   );
 }

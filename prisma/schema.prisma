@@ -173,6 +173,8 @@ model Job {
   anteckningar   String @default("")
   utfortArbete   String @default("")
   planeratArbete String @default("")
+  // Visas aldrig för kunden (varken på faktura eller utskrift)
+  internaAnteckningar String @default("")
 
   // Tidsstämplar
   skapad    DateTime @default(now())

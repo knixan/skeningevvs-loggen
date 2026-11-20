@@ -206,7 +206,7 @@ export function printJob(
   ${job.artiklar.length > 0 ? `<section><h4>Inköpt material</h4>${artiklarHtml}</section>` : ""}
   ${job.resor.length > 0 ? `<section><h4>Resor</h4>${resorHtml}</section>` : ""}
   ${job.arbetstider.length > 0 ? `<section><h4>Arbetstid</h4>${arbetstidHtml}</section>` : ""}
-  ${job.anteckningar ? `<section><h4>Interna anteckningar</h4><p class="anteckningar">${e(job.anteckningar)}</p></section>` : ""}
+  ${job.anteckningar ? `<section><h4>Övrigt</h4><p class="anteckningar">${e(job.anteckningar)}</p></section>` : ""}
   <div class="sidfot">
     <span>${customerName}${customerAddress ? ` · ${customerAddress}` : ""}</span>
     <span>Skeningevvs-loggen</span>

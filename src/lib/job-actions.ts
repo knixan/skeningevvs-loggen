@@ -124,6 +124,7 @@ function mapJob(j: JobWithRelations) {
     anteckningar: j.anteckningar,
     utfortArbete: j.utfortArbete,
     planeratArbete: j.planeratArbete,
+    internaAnteckningar: j.internaAnteckningar,
     artiklar: j.artiklar.map((a) => ({
       id: a.id,
       namn: a.namn,
@@ -496,6 +497,7 @@ export async function createJob(
       anteckningar: data.anteckningar ?? "",
       utfortArbete: data.utfortArbete ?? "",
       planeratArbete: data.planeratArbete ?? "",
+      internaAnteckningar: data.internaAnteckningar ?? "",
       artiklar: {
         create: data.artiklar.map((a) => ({
           namn: a.namn,
@@ -686,6 +688,7 @@ export async function updateJob(
           anteckningar: data.anteckningar ?? "",
           utfortArbete: data.utfortArbete ?? "",
           planeratArbete: data.planeratArbete ?? "",
+          internaAnteckningar: data.internaAnteckningar ?? "",
         },
       }),
     ]);

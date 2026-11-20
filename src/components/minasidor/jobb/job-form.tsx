@@ -92,6 +92,7 @@ const tomDefaults: JobInput = {
   anteckningar: "",
   utfortArbete: "",
   planeratArbete: "",
+  internaAnteckningar: "",
   bilder: [],
   fastPris: undefined,
 };
@@ -716,7 +717,7 @@ export default function JobForm({
             placeholder="Beskriv vad som har gjorts i projektet..."
           />
         </FormSubsection>
-        <FormSubsection icon={NotebookPen} title="Övriga anteckningar">
+        <FormSubsection icon={NotebookPen} title="Övrigt">
           <Textarea
             rows={4}
             {...register("anteckningar")}
@@ -855,6 +856,18 @@ export default function JobForm({
               onChange={(v) => setValue("betalt", v, { shouldDirty: true })}
             />
           </div>
+        </FormSubsection>
+
+        <FormSubsection
+          icon={NotebookPen}
+          title="Anteckningar"
+          description="Visas ej för kunden – syns inte på fakturan eller utskrifter."
+        >
+          <Textarea
+            rows={4}
+            {...register("internaAnteckningar")}
+            placeholder="T.ex. portkod, att följa upp, egna noteringar..."
+          />
         </FormSubsection>
       </FormSection>
 

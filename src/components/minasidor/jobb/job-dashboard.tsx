@@ -158,7 +158,8 @@ export default function JobDashboard({
           j.customer?.ort?.toLowerCase().includes(q) ||
           j.utfortArbete?.toLowerCase().includes(q) ||
           j.planeratArbete?.toLowerCase().includes(q) ||
-          j.anteckningar?.toLowerCase().includes(q)
+          j.anteckningar?.toLowerCase().includes(q) ||
+          j.internaAnteckningar?.toLowerCase().includes(q)
         );
       })
     : afterStatus;
