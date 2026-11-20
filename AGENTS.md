@@ -147,7 +147,7 @@ GitHub Project 23 (`knixan`, "Skeninge VVS Loggen"), repo `knixan/skeningevvs-lo
 | Vad           | ID                                                                                                                     |
 | ------------- | ---------------------------------------------------------------------------------------------------------------------- |
 | Projekt       | `PVT_kwHODHG13M4Bsg8d`                                                                                                 |
-| Status-fält   | `PVTSSF_lAHODHG13M4Bsg8dzhquxFU` – Backlog `f75ad846`, Ready `61e4505c`, In progress `47fc9ee4`, In review `df73e18b`, Done `98236657` |
+| Status-fält   | `PVTSSF_lAHODHG13M4Bsg8dzhquxFU` – Backlog `f75ad846`, Later `61e4505c`, In progress `47fc9ee4`, Done `98236657` |
 | Priority-fält | `PVTSSF_lAHODHG13M4Bsg8dzhquxVA` – P0 `79628723`, P1 `0a877460`, P2 `da944a9c`                                         |
 | Size-fält     | `PVTSSF_lAHODHG13M4Bsg8dzhquxVI` – XS `6c6483d2`, S `f784b110`, M `7515a9f1`, L `817d0097`, XL `db339eb2`             |
 
@@ -157,5 +157,7 @@ gh project item-add 23 --owner knixan --url <issue-url> --format json --jq .id
 gh project item-edit --project-id PVT_kwHODHG13M4Bsg8d --id <item-id> \
   --field-id PVTSSF_lAHODHG13M4Bsg8dzhquxFU --single-select-option-id f75ad846
 ```
+
+Projektet lägger ibland till nya issues automatiskt. Ger `item-add` felet "Content already exists" – hämta item-id med `gh project item-list 23 --owner knixan --format json` och sätt fälten ändå.
 
 När ett kort är klart: sätt status Done och kontrollera att issuen stängts – annars `gh issue close`.
