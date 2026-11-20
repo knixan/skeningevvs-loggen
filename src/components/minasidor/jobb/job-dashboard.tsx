@@ -27,6 +27,7 @@ type Filter =
   | "ej-påbörjat"
   | "pågående"
   | "utfört"
+  | "följ-upp"
   | "fakturerat"
   | "betalt";
 
@@ -65,6 +66,13 @@ const filters: {
       "border-red-300 text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-400",
   },
   {
+    value: "följ-upp",
+    label: "Följ upp",
+    activeClass: "bg-amber-500 text-white border-amber-500 hover:bg-amber-400",
+    inactiveClass:
+      "border-amber-300 text-amber-800 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-300",
+  },
+  {
     value: "fakturerat",
     label: "Fakturerat",
     activeClass:
@@ -89,6 +97,15 @@ function applyFilter(jobs: Job[], filter: Filter): Job[] {
       return jobs.filter((j) => j.pagaende && !j.utfort);
     case "utfört":
       return jobs.filter((j) => j.utfort);
+    case "följ-upp":
+      // Med datum först (tidigast överst), sedan de utan datum
+      return jobs
+        .filter((j) => j.foljUpp)
+        .toSorted((a, b) =>
+          (a.foljUppDatum || "9999-12-31").localeCompare(
+            b.foljUppDatum || "9999-12-31",
+          ),
+        );
     case "fakturerat":
       return jobs.filter((j) => j.fakturerat);
     case "betalt":

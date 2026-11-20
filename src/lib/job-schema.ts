@@ -85,6 +85,14 @@ export const jobSchema = z
     fakturerat: z.boolean().default(false),
     betalt: z.boolean().default(false),
 
+    foljUpp: z.boolean().default(false),
+    // Tom sträng = inget datum valt (så skickar <input type="date"> ett tomt fält)
+    foljUppDatum: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "Ogiltigt datum")
+      .optional()
+      .or(z.literal("")),
+
     artiklar: z.array(articleSchema).default([]),
     resor: z.array(resaSchema).default([]),
     arbetstider: z.array(arbetstidSchema).default([]),

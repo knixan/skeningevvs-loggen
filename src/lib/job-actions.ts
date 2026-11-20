@@ -107,6 +107,18 @@ function mapCustomer(c: NonNullable<JobWithRelations["customer"]>) {
   };
 }
 
+/**
+ * Uppföljningsdatum till databasen. Kontrolleras här på servern eftersom
+ * createJob/updateJob ännu inte validerar hela jobbet med zod.
+ * Inget datum om bocken är av eller om datumet är tomt/ogiltigt.
+ */
+function foljUppDatumTillDb(data: JobInput): Date | null {
+  if (!data.foljUpp || !data.foljUppDatum) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(data.foljUppDatum)) return null;
+  const datum = new Date(data.foljUppDatum);
+  return Number.isNaN(datum.getTime()) ? null : datum;
+}
+
 function mapJob(j: JobWithRelations) {
   return {
     id: j.id,
@@ -121,6 +133,8 @@ function mapJob(j: JobWithRelations) {
     utfort: j.utfort,
     fakturerat: j.fakturerat,
     betalt: j.betalt,
+    foljUpp: j.foljUpp,
+    foljUppDatum: j.foljUppDatum?.toISOString().slice(0, 10) ?? "",
     anteckningar: j.anteckningar,
     utfortArbete: j.utfortArbete,
     planeratArbete: j.planeratArbete,
@@ -494,6 +508,8 @@ export async function createJob(
       utfort: data.utfort,
       fakturerat: data.fakturerat,
       betalt: data.betalt,
+      foljUpp: Boolean(data.foljUpp),
+      foljUppDatum: foljUppDatumTillDb(data),
       anteckningar: data.anteckningar ?? "",
       utfortArbete: data.utfortArbete ?? "",
       planeratArbete: data.planeratArbete ?? "",
@@ -685,6 +701,8 @@ export async function updateJob(
           utfort: data.utfort,
           fakturerat: data.fakturerat,
           betalt: data.betalt,
+          foljUpp: Boolean(data.foljUpp),
+          foljUppDatum: foljUppDatumTillDb(data),
           anteckningar: data.anteckningar ?? "",
           utfortArbete: data.utfortArbete ?? "",
           planeratArbete: data.planeratArbete ?? "",

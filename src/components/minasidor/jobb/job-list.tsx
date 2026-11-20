@@ -9,7 +9,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { beräknaSummering, type Job } from "@/lib/job-schema";
 import JobOverviewDialog from "../oversikt/job-overview-dialog";
-import { StatusBadge, Badge } from "../oversikt/job-overview-badges";
+import {
+  StatusBadge,
+  FoljUppBadge,
+  Badge,
+} from "../oversikt/job-overview-badges";
 
 interface Props {
   jobs: Job[];
@@ -67,6 +71,7 @@ export default function JobList({ jobs, onEdit, onDelete }: Props) {
 
                 <div className="flex flex-wrap gap-1.5 pt-1">
                   <StatusBadge job={job} />
+                  <FoljUppBadge job={job} />
                   {job.fakturerat && (
                     <Badge label="Fakturerat" color="orange" />
                   )}

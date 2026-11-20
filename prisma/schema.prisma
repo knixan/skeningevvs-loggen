@@ -161,6 +161,10 @@ model Job {
   fakturerat Boolean @default(false)
   betalt     Boolean @default(false)
 
+  // Uppföljning – oberoende av status ovan
+  foljUpp      Boolean   @default(false)
+  foljUppDatum DateTime? @db.Date
+
   // Fakturering
   fakturanummer Int?
 

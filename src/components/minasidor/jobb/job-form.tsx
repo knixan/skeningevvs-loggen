@@ -44,6 +44,7 @@ import {
   type Customer,
 } from "@/lib/job-schema";
 import { deleteUploadedImage } from "@/lib/job-actions";
+import { idag } from "@/lib/datum";
 import { useUploadThing } from "@/lib/uploadthing-client";
 import { useState, useRef } from "react";
 
@@ -68,14 +69,6 @@ interface Props {
   customers?: Customer[];
 }
 
-const idag = () => {
-  const nu = new Date();
-  const ar = nu.getFullYear();
-  const manad = String(nu.getMonth() + 1).padStart(2, "0");
-  const dag = String(nu.getDate()).padStart(2, "0");
-  return `${ar}-${manad}-${dag}`;
-};
-
 const tomDefaults: JobInput = {
   customerId: undefined,
   artiklar: [],
@@ -89,6 +82,8 @@ const tomDefaults: JobInput = {
   utfort: false,
   fakturerat: false,
   betalt: false,
+  foljUpp: false,
+  foljUppDatum: "",
   anteckningar: "",
   utfortArbete: "",
   planeratArbete: "",
@@ -824,6 +819,35 @@ export default function JobForm({
                 setValue("pagaende", false, { shouldDirty: true });
               }}
             />
+          </div>
+          <Separator />
+          <div className="space-y-3">
+            <ToggleRow
+              id="folj-upp"
+              label="Behöver följas upp"
+              checked={live.foljUpp ?? false}
+              onChange={(v) => {
+                setValue("foljUpp", v, { shouldDirty: true });
+                if (!v) setValue("foljUppDatum", "", { shouldDirty: true });
+              }}
+            />
+            {live.foljUpp && (
+              <Field
+                label="Följ upp senast (valfritt)"
+                icon={<Calendar className="h-3.5 w-3.5" />}
+              >
+                <Input
+                  type="date"
+                  className="sm:max-w-xs"
+                  {...register("foljUppDatum")}
+                />
+              </Field>
+            )}
+            {live.foljUpp && (
+              <p className="text-xs text-muted-foreground">
+                Skriv vad som ska följas upp under Anteckningar längre ner.
+              </p>
+            )}
           </div>
         </FormSubsection>
 

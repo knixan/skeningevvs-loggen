@@ -48,7 +48,7 @@ En vanlig Next.js-app (inte monorepo), npm som pakethanterare.
   4. returnera `{ ok: false, error }` med ett svenskt felmeddelande i stället för att kasta, och fånga databasfel med try/catch.
 - **En läsning får aldrig skapa eller ändra något.**
 - **UploadThing:** radera filer från UploadThing först **efter** att databasen har sparats (se `updateJob`) – aldrig direkt vid klick. Radera bara nycklar som tillhör det här företaget. Radera aldrig "allt som inte används".
-- **Datum:** resor och arbetspass är `@db.Date` och skickas som `YYYY-MM-DD`. Standarddatum räknas i lokal tid (`idag()` i `job-form.tsx`), inte med `toISOString()` (UTC).
+- **Datum:** resor och arbetspass är `@db.Date` och skickas som `YYYY-MM-DD`. Standarddatum räknas i lokal tid (`idag()` i `lib/datum.ts`), inte med `toISOString()` (UTC).
 - **Personnummer** visas bara där det behövs (ROT, faktura).
 
 ### Kända brister (rätta inte i förbigående – gör ett kort)

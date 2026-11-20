@@ -1,8 +1,9 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Wrench } from "lucide-react";
+import { BellRing, Wrench } from "lucide-react";
 import type { Job } from "@/lib/job-schema";
+import { idag, kortDatum } from "@/lib/datum";
 
 export function toTelHref(phone: string) {
   return phone.replace(/[^\d+]/g, "");
@@ -52,6 +53,29 @@ export function StatusBadge({ job }: { job: Job }) {
     >
       <Wrench className="h-3 w-3" />
       {label}
+    </span>
+  );
+}
+
+/** "Följ upp" med datum. Röd när datumet har passerat. */
+export function FoljUppBadge({ job }: { job: Job }) {
+  if (!job.foljUpp) return null;
+
+  const datum = job.foljUppDatum || "";
+  const forsenad = datum !== "" && datum < idag();
+  const colorClass = forsenad
+    ? "bg-red-600 text-white dark:bg-red-700"
+    : "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300";
+
+  return (
+    // Servern (UTC) och webbläsaren (svensk tid) kan vara oense om "idag"
+    // runt midnatt – därför suppressHydrationWarning.
+    <span
+      suppressHydrationWarning
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${colorClass}`}
+    >
+      <BellRing className="h-3 w-3" />
+      Följ upp{datum ? ` ${kortDatum(datum)}` : ""}
     </span>
   );
 }
