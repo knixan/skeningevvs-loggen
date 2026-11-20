@@ -1,10 +1,34 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
+import { useTransition } from "react";
+import { toast } from "sonner";
 import type { Job } from "@/lib/job-schema";
-import { beräknaFaktura, formateraAntal, kundensNamn } from "@/lib/job-schema";
+import {
+  beräknaFaktura,
+  formateraAntal,
+  formateraKr,
+  formateraTal,
+  kundensNamn,
+  MOMS_PROCENT,
+  ROT_PROCENT,
+  rotBostad,
+} from "@/lib/job-schema";
+import { utfardaFaktura } from "@/lib/job-actions";
 import { Button } from "@/components/ui/button";
-import { Printer } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { FileCheck, Printer } from "lucide-react";
 
 const PdfKnapp = dynamic(() => import("./pdf-knapp").then((m) => m.PdfKnapp), {
   ssr: false,
@@ -38,22 +62,48 @@ type Company = {
 interface Props {
   job: Job;
   company: Company;
-  fakturanummer: number;
+  /** null = fakturan är inte utfärdad – sidan visar en förhandsgranskning */
+  fakturanummer: number | null;
 }
 
 export default function SkrivUtKlient({ job, company, fakturanummer }: Props) {
+  const router = useRouter();
+  const [utfardar, startUtfarda] = useTransition();
+  const arUtfardad = fakturanummer != null;
+
   const today = new Date().toLocaleDateString("sv-SE");
   const forfalloDate = new Date();
   forfalloDate.setDate(forfalloDate.getDate() + (company.forfallodagar || 30));
   const forfalloStr = forfalloDate.toLocaleDateString("sv-SE");
 
   const arFastPris = job.fastPris !== undefined && job.fastPris !== null;
-  const { summary, exklMoms, moms, rotAvdrag, attBetala } = beräknaFaktura(job);
+  const {
+    summary,
+    exklMoms,
+    moms,
+    arbetskostnad,
+    rotUnderlag,
+    rotAvdrag,
+    attBetala,
+  } = beräknaFaktura(job);
 
   const kund = job.customer;
   const kundNamn = kundensNamn(kund) || "Okänd kund";
   const kundAdress = kund?.adress ?? "";
   const kundPostOrt = [kund?.postnummer, kund?.ort].filter(Boolean).join(" ");
+  const bostad = rotBostad(kund);
+
+  function utfarda() {
+    startUtfarda(async () => {
+      const result = await utfardaFaktura(job.id);
+      if (result.ok) {
+        toast.success(`Faktura ${result.nummer} utfärdad`);
+        router.refresh();
+      } else {
+        toast.error(result.error);
+      }
+    });
+  }
 
   return (
     <>
@@ -119,11 +169,56 @@ export default function SkrivUtKlient({ job, company, fakturanummer }: Props) {
           zIndex: 10,
         }}
       >
-        <Button variant="outline" size="sm" onClick={() => window.print()}>
-          <Printer className="h-4 w-4 mr-2" />
-          Skriv ut
-        </Button>
-        <PdfKnapp job={job} company={company} fakturanummer={fakturanummer} />
+        {arUtfardad ? (
+          <>
+            <Button variant="outline" size="sm" onClick={() => window.print()}>
+              <Printer className="h-4 w-4 mr-2" />
+              Skriv ut
+            </Button>
+            <PdfKnapp
+              job={job}
+              company={company}
+              fakturanummer={fakturanummer}
+            />
+          </>
+        ) : (
+          <>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button size="sm" disabled={utfardar}>
+                  <FileCheck className="h-4 w-4 mr-2" />
+                  {utfardar ? "Utfärdar..." : "Utfärda faktura"}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Utfärda faktura?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Fakturan får nästa lediga fakturanummer (just nu{" "}
+                    {company.nastaFakturanummer}) och jobbet markeras som
+                    fakturerat. Ett utfärdat fakturanummer kan inte ändras
+                    eller återanvändas.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Avbryt</AlertDialogCancel>
+                  <AlertDialogAction onClick={utfarda}>
+                    Utfärda faktura
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+            <p
+              style={{
+                alignSelf: "center",
+                fontSize: "9pt",
+                color: "#6b7280",
+              }}
+            >
+              Förhandsgranskning – fakturan har inget fakturanummer än.
+            </p>
+          </>
+        )}
       </div>
 
       <div className="sida">
@@ -200,12 +295,12 @@ export default function SkrivUtKlient({ job, company, fakturanummer }: Props) {
           </div>
 
           <div className="faktura-info">
-            <h1>FAKTURA</h1>
+            <h1>{arUtfardad ? "FAKTURA" : "FÖRHANDSGRANSKNING"}</h1>
             <table>
               <tbody>
                 <tr>
                   <td>Fakturanummer</td>
-                  <td className="bold">{fakturanummer}</td>
+                  <td className="bold">{arUtfardad ? fakturanummer : "–"}</td>
                 </tr>
                 <tr>
                   <td>Fakturadatum</td>
@@ -267,10 +362,9 @@ export default function SkrivUtKlient({ job, company, fakturanummer }: Props) {
               Personnummer: {kund.personnummer}
             </p>
           )}
-          {job.rotAvdrag && kund?.fastighetsbeteckning && (
+          {job.rotAvdrag && bostad && (
             <p style={{ marginTop: 4, fontSize: "9pt", color: "#555" }}>
-              ROT-avdrag · Fastighet: {kund.fastighetsbeteckning}
-              {kund.lagenhetsnummer ? ` · Lgh: ${kund.lagenhetsnummer}` : ""}
+              ROT-avdrag · {bostad}
             </p>
           )}
         </div>
@@ -324,7 +418,9 @@ export default function SkrivUtKlient({ job, company, fakturanummer }: Props) {
               {summary.totalTimmar > 0 && summary.timpris > 0 && (
                 <tr>
                   <td>Arbetstid</td>
-                  <td className="right">{summary.totalTimmar} h</td>
+                  <td className="right">
+                    {formateraTal(summary.totalTimmar)} h
+                  </td>
                   <td className="right">
                     {summary.timpris.toLocaleString("sv-SE")} kr/h
                   </td>
@@ -336,7 +432,9 @@ export default function SkrivUtKlient({ job, company, fakturanummer }: Props) {
               {summary.totalStracka > 0 && summary.milersattning > 0 && (
                 <tr>
                   <td>Resor / milersättning</td>
-                  <td className="right">{summary.totalStracka} km</td>
+                  <td className="right">
+                    {formateraTal(summary.totalStracka)} km
+                  </td>
                   <td className="right">
                     {summary.milersattning.toLocaleString("sv-SE")} kr/km
                   </td>
@@ -377,8 +475,20 @@ export default function SkrivUtKlient({ job, company, fakturanummer }: Props) {
                   kr
                 </td>
               </tr>
+              {/* Arbetsdelen av ett fast pris – ROT räknas bara på den */}
+              {arFastPris && job.fastPrisArbete != null && (
+                <tr className="moms-rad">
+                  <td>varav arbetskostnad exkl. moms</td>
+                  <td>
+                    {arbetskostnad.toLocaleString("sv-SE", {
+                      minimumFractionDigits: 2,
+                    })}{" "}
+                    kr
+                  </td>
+                </tr>
+              )}
               <tr className="moms-rad">
-                <td>Moms 25%</td>
+                <td>Moms {MOMS_PROCENT}%</td>
                 <td>
                   {moms.toLocaleString("sv-SE", { minimumFractionDigits: 2 })}{" "}
                   kr
@@ -387,8 +497,8 @@ export default function SkrivUtKlient({ job, company, fakturanummer }: Props) {
               {rotAvdrag > 0 && (
                 <tr className="moms-rad">
                   <td>
-                    ROT-avdrag 30% (av{" "}
-                    {(summary.arbetstidSum * 1.25).toLocaleString("sv-SE", {
+                    ROT-avdrag {ROT_PROCENT}% (av{" "}
+                    {rotUnderlag.toLocaleString("sv-SE", {
                       minimumFractionDigits: 2,
                     })}{" "}
                     kr arbete inkl. moms)*
@@ -437,7 +547,7 @@ export default function SkrivUtKlient({ job, company, fakturanummer }: Props) {
           </div>
           <div className="betalning-block">
             <h4>Meddelande / OCR</h4>
-            <p>{fakturanummer}</p>
+            <p>{arUtfardad ? fakturanummer : "–"}</p>
           </div>
         </div>
 
@@ -453,8 +563,8 @@ export default function SkrivUtKlient({ job, company, fakturanummer }: Props) {
         )}
         {job.rotAvdrag && (
           <p className="fskatt" style={{ marginTop: 4 }}>
-            * ROT-avdrag: Avser 30% av arbetskostnad inkl. moms. Hantverkaren
-            ansöker om utbetalning hos Skatteverket.
+            * ROT-avdrag: Avser {ROT_PROCENT}% av arbetskostnad inkl. moms.
+            Hantverkaren ansöker om utbetalning hos Skatteverket.
           </p>
         )}
       </div>

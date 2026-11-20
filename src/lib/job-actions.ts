@@ -6,12 +6,13 @@ import type { Prisma } from "@prisma/client";
 import { UTApi } from "uploadthing/server";
 import { auth } from "./auth";
 import { prisma } from "./prisma";
-import type { z } from "zod";
+import { z } from "zod";
 import {
   companySchema,
   customerSchema,
   jobSchema,
   rensaKundFalt,
+  ROT_BARA_PRIVAT,
   type JobInput,
   type CustomerInput,
   type CompanyInput,
@@ -136,6 +137,7 @@ function mapJob(j: JobWithRelations) {
     timpris: j.timpris,
     milersattning: j.milersattning,
     fastPris: j.fastPris ?? undefined,
+    fastPrisArbete: j.fastPrisArbete ?? undefined,
     pagaende: j.pagaende,
     utfort: j.utfort,
     fakturerat: j.fakturerat,
@@ -531,12 +533,8 @@ export async function createJob(
   if (!parsed.success) return { ok: false, error: forstaFel(parsed.error) };
   const data = parsed.data;
 
-  if (data.customerId) {
-    const customer = await prisma.customer.findFirst({
-      where: { id: data.customerId, companyId: company.id },
-    });
-    if (!customer) return { ok: false, error: "Kund hittades inte" };
-  }
+  const kundFel = await kontrolleraKund(company.id, data);
+  if (kundFel) return { ok: false, error: kundFel };
 
   try {
     await skapaJobb(company.id, data, bilder);
@@ -547,6 +545,26 @@ export async function createJob(
 
   revalidatePath("/mina-sidor");
   return { ok: true as const };
+}
+
+/**
+ * Kunden på ett jobb måste tillhöra företaget, och ROT går bara att välja för
+ * privatpersoner. Returnerar ett felmeddelande, eller null om allt stämmer.
+ */
+async function kontrolleraKund(companyId: string, data: JobInput) {
+  if (!data.customerId) return null;
+  const customer = await prisma.customer.findFirst({
+    where: { id: data.customerId, companyId },
+    select: { typ: true },
+  });
+  if (!customer) return "Kund hittades inte";
+  if (data.rotAvdrag && customer.typ === "foretag") return ROT_BARA_PRIVAT;
+  return null;
+}
+
+/** Arbetsdelen av ett fast pris sparas bara när jobbet har fast pris. */
+function fastPrisArbeteTillDb(data: JobInput) {
+  return data.fastPris != null ? (data.fastPrisArbete ?? null) : null;
 }
 
 function skapaJobb(
@@ -562,6 +580,7 @@ function skapaJobb(
       timpris: data.timpris ?? 0,
       milersattning: data.milersattning ?? 0,
       fastPris: data.fastPris ?? null,
+      fastPrisArbete: fastPrisArbeteTillDb(data),
       pagaende: data.pagaende,
       utfort: data.utfort,
       fakturerat: data.fakturerat,
@@ -633,12 +652,8 @@ export async function updateJob(
   });
   if (!existing) return { ok: false, error: "Jobb hittades inte" };
 
-  if (data.customerId) {
-    const customer = await prisma.customer.findFirst({
-      where: { id: data.customerId, companyId: company.id },
-    });
-    if (!customer) return { ok: false, error: "Kund hittades inte" };
-  }
+  const kundFel = await kontrolleraKund(company.id, data);
+  if (kundFel) return { ok: false, error: kundFel };
 
   const existingImageKeys = existing.images.map((i) => i.key);
   const newImageKeys = bilder.map((b) => b.key);
@@ -773,6 +788,7 @@ export async function updateJob(
           timpris: data.timpris ?? 0,
           milersattning: data.milersattning ?? 0,
           fastPris: data.fastPris ?? null,
+          fastPrisArbete: fastPrisArbeteTillDb(data),
           pagaende: data.pagaende,
           utfort: data.utfort,
           fakturerat: data.fakturerat,
@@ -867,53 +883,68 @@ export async function deleteAccount(): Promise<{
   return { ok: true as const };
 }
 
-export async function reserverFakturanummer(
+/**
+ * Utfärdar fakturan för ett jobb: delar ut nästa fakturanummer och markerar
+ * jobbet som fakturerat, i samma transaktion. Ett jobb som redan har ett
+ * nummer behåller det. Anropas bara från knappen "Utfärda faktura" – att
+ * öppna fakturasidan får aldrig dela ut ett nummer (en läsning ändrar inget).
+ */
+export async function utfardaFaktura(
   jobId: string,
 ): Promise<{ ok: true; nummer: number } | { ok: false; error: string }> {
-  const session = await getSession();
-  if (!session?.user) return { ok: false, error: "Inte inloggad" };
+  const ctx = await requireExistingCompany();
+  if ("error" in ctx) return ctx;
+  const { company } = ctx;
+
+  const id = z.string().min(1).safeParse(jobId);
+  if (!id.success) return { ok: false, error: "Jobb hittades inte" };
 
   try {
-    const nummer = await prisma.$transaction(async (tx) => {
-      const company = await tx.company.findFirst({
-        where: { ownerId: session.user.id },
-      });
-      if (!company) throw new Error("Inget företag hittat");
+    const utfall = await prisma.$transaction(
+      async (tx): Promise<{ nummer: number } | { fel: string }> => {
+        // Lås jobbraden (FOR UPDATE) innan vi läser fakturanummer. Utan detta
+        // kan två samtidiga anrop för samma jobb (t.ex. två öppna flikar)
+        // båda läsa fakturanummer som null och tilldela olika nummer.
+        const rader = await tx.$queryRaw<
+          { fakturanummer: number | null; customerId: string | null }[]
+        >`
+          SELECT "fakturanummer", "customerId" FROM job
+          WHERE id = ${id.data} AND "companyId" = ${company.id}
+          FOR UPDATE
+        `;
+        const jobb = rader[0];
+        if (!jobb) return { fel: "Jobb hittades inte" };
+        if (jobb.fakturanummer != null) return { nummer: jobb.fakturanummer };
+        if (!jobb.customerId) {
+          return { fel: "Välj en kund på jobbet innan fakturan utfärdas." };
+        }
 
-      // Lås jobbraden (FOR UPDATE) innan vi läser fakturanummer. Utan detta
-      // kan två samtidiga anrop för samma jobb (t.ex. två öppna flikar)
-      // båda läsa fakturanummer som null och tilldela olika nummer.
-      const locked = await tx.$queryRaw<{ fakturanummer: number | null }[]>`
-        SELECT "fakturanummer" FROM job
-        WHERE id = ${jobId} AND "companyId" = ${company.id}
-        FOR UPDATE
-      `;
-      if (locked.length === 0) throw new Error("Jobb hittades inte");
-      if (locked[0].fakturanummer != null) return locked[0].fakturanummer;
+        // Atomärt: räknar upp och returnerar gamla värdet i en enda SQL-sats,
+        // vilket förhindrar race conditions vid parallella anrop.
+        const result = await tx.$queryRaw<[{ nummer: number }]>`
+          UPDATE company
+          SET "nastaFakturanummer" = "nastaFakturanummer" + 1
+          WHERE id = ${company.id}
+          RETURNING "nastaFakturanummer" - 1 AS nummer
+        `;
+        const n = result[0]?.nummer;
+        if (n == null) throw new Error("Kunde inte reservera fakturanummer");
 
-      // Atomärt: låser raden och returnerar gamla värdet i en enda SQL-sats,
-      // vilket förhindrar race conditions vid parallella anrop.
-      const result = await tx.$queryRaw<[{ nummer: number }]>`
-        UPDATE company
-        SET "nastaFakturanummer" = "nastaFakturanummer" + 1
-        WHERE id = ${company.id}
-        RETURNING "nastaFakturanummer" - 1 AS nummer
-      `;
-      const n = result[0]?.nummer;
-      if (n == null) throw new Error("Kunde inte reservera fakturanummer");
+        await tx.job.update({
+          where: { id: id.data },
+          data: { fakturanummer: n, fakturerat: true },
+        });
+        return { nummer: n };
+      },
+    );
+    if ("fel" in utfall) return { ok: false, error: utfall.fel };
 
-      await tx.job.update({
-        where: { id: jobId },
-        data: { fakturanummer: n },
-      });
-      return n;
-    });
-    return { ok: true, nummer };
+    revalidatePath("/mina-sidor");
+    revalidatePath(`/mina-sidor/jobb/${id.data}/skriv-ut`);
+    return { ok: true, nummer: utfall.nummer };
   } catch (err) {
-    return {
-      ok: false,
-      error: err instanceof Error ? err.message : "Okänt fel",
-    };
+    console.error("Kunde inte utfärda faktura:", err);
+    return { ok: false, error: "Kunde inte utfärda fakturan. Försök igen." };
   }
 }
 

@@ -2,11 +2,7 @@ import { Suspense } from "react";
 import { headers } from "next/headers";
 import { redirect, notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
-import {
-  getJob,
-  getCompanySettings,
-  reserverFakturanummer,
-} from "@/lib/job-actions";
+import { getJob, getCompanySettings } from "@/lib/job-actions";
 import SkrivUtKlient from "@/components/minasidor/faktura/skriv-ut-klient";
 
 export default function SkrivUtPage({
@@ -35,11 +31,13 @@ async function SkrivUtInnehall({
   if (!job) notFound();
   if (!company) notFound();
 
-  const fakturaResult = await reserverFakturanummer(id);
-  if (!fakturaResult.ok) notFound();
-  const fakturanummer = fakturaResult.nummer;
-
+  // Att öppna sidan ändrar ingenting. Har jobbet inget fakturanummer visas en
+  // förhandsgranskning, och numret delas ut först med "Utfärda faktura".
   return (
-    <SkrivUtKlient job={job} company={company} fakturanummer={fakturanummer} />
+    <SkrivUtKlient
+      job={job}
+      company={company}
+      fakturanummer={job.fakturanummer ?? null}
+    />
   );
 }

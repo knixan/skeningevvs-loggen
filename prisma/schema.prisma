@@ -184,6 +184,8 @@ model Job {
   timpris       Float  @default(0)
   milersattning Float  @default(0)
   fastPris      Float?
+  // Hur mycket av fastPris som är arbete (exkl. moms) – ROT räknas på den
+  fastPrisArbete Float?
 
   // Anteckningar
   anteckningar        String @default("")

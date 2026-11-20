@@ -55,6 +55,26 @@ export function kundensNamn(
 }
 
 /**
+ * Bostadsuppgifterna som ROT-avdraget kräver, t.ex. "Fastighet: Berga 1:23"
+ * eller "BRF: Brf Solrosen · Lgh: 1101". Tom sträng om inget är ifyllt.
+ */
+export function rotBostad(
+  kund?: Pick<
+    CustomerInput,
+    "fastighetsbeteckning" | "bostadsrattsforening" | "lagenhetsnummer"
+  > | null,
+): string {
+  if (!kund) return "";
+  return [
+    kund.fastighetsbeteckning && `Fastighet: ${kund.fastighetsbeteckning}`,
+    kund.bostadsrattsforening && `BRF: ${kund.bostadsrattsforening}`,
+    kund.lagenhetsnummer && `Lgh: ${kund.lagenhetsnummer}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+/**
  * Rensar fält som inte hör till kundtypen, så att t.ex. ett personnummer inte
  * ligger kvar osynligt på en företagskund efter att typen bytts.
  */
@@ -82,17 +102,38 @@ export function formateraKr(n: number): string {
 // ============================================================
 // Jobb-schema
 // ============================================================
+//
+// Alla felmeddelanden står på svenska här – zod:s egna är engelska. Ett
+// nummerfält som lämnas tomt blir NaN i formuläret, och då visas
+// meddelandet i `error` ("Ange …").
+
+const högstTecken = (n: number) => `Högst ${n} tecken`;
+
+/** Tal som inte får vara negativt, med svenska felmeddelanden. */
+function belopp(saknas: string, negativt: string) {
+  return z.coerce.number({ error: saknas }).min(0, negativt);
+}
 
 export const articleSchema = z.object({
   id: z.string().optional(),
-  namn: z.string().trim().min(1, "Namn krävs").max(120),
-  artikelnr: z.string().trim().max(50).optional().default(""),
-  aterforsaljare: z.string().trim().max(120).optional().default(""),
-  inkopspris: z.coerce.number().min(0).optional().default(0),
-  pris: z.coerce.number().min(0, "Pris får inte vara negativt"),
+  namn: z.string().trim().min(1, "Namn krävs").max(120, högstTecken(120)),
+  artikelnr: z.string().trim().max(50, högstTecken(50)).optional().default(""),
+  aterforsaljare: z
+    .string()
+    .trim()
+    .max(120, högstTecken(120))
+    .optional()
+    .default(""),
+  inkopspris: belopp("Ange inköpspris", "Inköpspris får inte vara negativt")
+    .optional()
+    .default(0),
+  pris: belopp("Ange utpris", "Pris får inte vara negativt"),
   // Decimaler tillåtna – rör och kabel köps per meter
-  antal: z.coerce.number().positive("Måste vara större än 0").default(1),
-  enhet: z.string().trim().max(10).optional().default(""),
+  antal: z.coerce
+    .number({ error: "Ange antal" })
+    .positive("Måste vara större än 0")
+    .default(1),
+  enhet: z.string().trim().max(10, högstTecken(10)).optional().default(""),
   // Bara ett hjälpfält i formuläret för att räkna fram utpriset – sparas
   // aldrig. Jobbet sparar utpriset (`pris`) så att en faktura inte ändras om
   // påslaget i inställningarna ändras senare. NaN = tomt fält.
@@ -126,27 +167,40 @@ const datumSchema = z
 export const resaSchema = z.object({
   id: z.string().optional(),
   datum: datumSchema,
-  stracka: z.coerce.number().min(0, "Sträcka får inte vara negativ"),
+  stracka: belopp("Ange sträcka", "Sträcka får inte vara negativ"),
 });
 
 export const arbetstidSchema = z.object({
   id: z.string().optional(),
   datum: datumSchema,
-  timmar: z.coerce.number().min(0, "Timmar får inte vara negativt"),
+  timmar: belopp("Ange timmar", "Timmar får inte vara negativt"),
 });
 
 export const ovrigKostnadSchema = z.object({
   id: z.string().optional(),
-  beskrivning: z.string().trim().min(1, "Beskrivning krävs").max(200),
-  pris: z.coerce.number().min(0, "Pris får inte vara negativt"),
+  beskrivning: z
+    .string()
+    .trim()
+    .min(1, "Beskrivning krävs")
+    .max(200, högstTecken(200)),
+  pris: belopp("Ange pris", "Pris får inte vara negativt"),
 });
+
+/** Felmeddelande när ROT väljs för en företagskund (kontrolleras på servern). */
+export const ROT_BARA_PRIVAT =
+  "ROT-avdrag gäller bara privatpersoner – bocka ur ROT eller byt kund.";
 
 export const jobSchema = z
   .object({
     customerId: z.string().optional(),
 
-    timpris: z.coerce.number().min(0).default(0),
-    milersattning: z.coerce.number().min(0).default(0),
+    timpris: belopp("Ange timpris", "Timpris får inte vara negativt").default(
+      0,
+    ),
+    milersattning: belopp(
+      "Ange milersättning",
+      "Milersättning får inte vara negativ",
+    ).default(0),
 
     rotAvdrag: z.boolean().default(false),
     pagaende: z.boolean().default(false),
@@ -166,19 +220,55 @@ export const jobSchema = z
     arbetstider: z.array(arbetstidSchema).default([]),
     ovrigaKostnader: z.array(ovrigKostnadSchema).default([]),
 
-    anteckningar: z.string().max(2000).optional().default(""),
-    utfortArbete: z.string().max(2000).optional().default(""),
-    planeratArbete: z.string().max(2000).optional().default(""),
-    internaAnteckningar: z.string().max(2000).optional().default(""),
+    anteckningar: z.string().max(2000, högstTecken(2000)).optional().default(""),
+    utfortArbete: z.string().max(2000, högstTecken(2000)).optional().default(""),
+    planeratArbete: z
+      .string()
+      .max(2000, högstTecken(2000))
+      .optional()
+      .default(""),
+    internaAnteckningar: z
+      .string()
+      .max(2000, högstTecken(2000))
+      .optional()
+      .default(""),
 
     bilder: z.array(z.object({ url: z.string(), key: z.string() })).default([]),
 
-    fastPris: z.coerce.number().min(0).optional(),
+    fastPris: belopp(
+      "Ange fast pris",
+      "Fast pris får inte vara negativt",
+    ).optional(),
+    // Hur mycket av det fasta priset som är arbete (exkl. moms). ROT räknas
+    // bara på arbete som står på fakturan – med fast pris är det den här.
+    fastPrisArbete: belopp(
+      "Ange arbetskostnaden",
+      "Arbetskostnaden får inte vara negativ",
+    ).optional(),
   })
   .refine((data) => !(data.betalt && !data.fakturerat), {
     message: "Kan inte markera som betalt utan att ha fakturerat",
     path: ["betalt"],
-  });
+  })
+  .refine(
+    (data) =>
+      !(data.rotAvdrag && data.fastPris != null && data.fastPrisArbete == null),
+    {
+      message:
+        "Ange hur mycket av det fasta priset som är arbete – ROT räknas bara på arbetskostnaden",
+      path: ["fastPrisArbete"],
+    },
+  )
+  .refine(
+    (data) =>
+      data.fastPris == null ||
+      data.fastPrisArbete == null ||
+      data.fastPrisArbete <= data.fastPris,
+    {
+      message: "Arbetskostnaden kan inte vara högre än det fasta priset",
+      path: ["fastPrisArbete"],
+    },
+  );
 
 export type JobInput = z.infer<typeof jobSchema>;
 
@@ -255,19 +345,39 @@ export function beräknaSummering(job: JobInput) {
   };
 }
 
+/** Momssats i procent. Används både i beräkningen och i fakturatexten. */
+export const MOMS_PROCENT = 25;
+/** ROT-avdrag i procent av arbetskostnaden inkl. moms (30 % år 2026). */
+export const ROT_PROCENT = 30;
+
 // Delad fakturaberäkning (moms, ROT-avdrag, att betala) så att PDF:en och
 // utskriftsvyn alltid visar samma summor för samma jobb.
 export function beräknaFaktura(job: JobInput) {
   const summary = beräknaSummering(job);
 
-  const exklMoms = job.fastPris != null ? job.fastPris : summary.totalExklMoms;
-  const moms = exklMoms * 0.25;
+  const exklMoms = job.fastPris ?? summary.totalExklMoms;
+  const moms = exklMoms * (MOMS_PROCENT / 100);
   const totalInklMoms = exklMoms + moms;
-  const rotAvdrag =
-    job.rotAvdrag && summary.arbetstidSum > 0
-      ? summary.arbetstidSum * 1.25 * 0.3
-      : 0;
+
+  // ROT räknas bara på arbete som står på fakturan: den löpande arbetstiden,
+  // eller – med fast pris – den del av priset som angetts som arbete.
+  // Loggade timmar på ett fast pris-jobb står inte på fakturan och räknas inte.
+  const arbetskostnad =
+    job.fastPris != null ? (job.fastPrisArbete ?? 0) : summary.arbetstidSum;
+  const rotUnderlag = job.rotAvdrag
+    ? arbetskostnad * (1 + MOMS_PROCENT / 100)
+    : 0;
+  const rotAvdrag = rotUnderlag * (ROT_PROCENT / 100);
   const attBetala = totalInklMoms - rotAvdrag;
 
-  return { summary, exklMoms, moms, totalInklMoms, rotAvdrag, attBetala };
+  return {
+    summary,
+    exklMoms,
+    moms,
+    totalInklMoms,
+    arbetskostnad,
+    rotUnderlag,
+    rotAvdrag,
+    attBetala,
+  };
 }
