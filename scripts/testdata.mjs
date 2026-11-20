@@ -350,6 +350,8 @@ const jobb = [
     fakturerat: true,
     betalt: true,
     fastPris: 8500,
+    // 8 500 − material 4 380 (3 790 + 590) = 4 120 kr arbete – ROT räknas på den
+    fastPrisArbete: 4120,
     planeratArbete: "Service av bergvärmepump och byte av cirkulationspump.",
     utfortArbete:
       "Service utförd: filter rengjorda, tryck kontrollerat, köldbärare påfylld. Bytt cirkulationspump på värmesidan.",

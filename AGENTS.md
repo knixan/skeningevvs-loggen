@@ -34,11 +34,13 @@ En vanlig Next.js-app (inte monorepo), npm som pakethanterare.
 
 - **Ett konto, för alltid.** `databaseHooks.user.create.before` i `lib/auth.ts` stoppar fler än ett konto. Ta aldrig bort eller kringgå den spärren.
 - **Ett företag per användare** (`Company.ownerId` är unikt), skapas av `getOrCreateCompany`. All affärsdata hänger på `companyId`.
-- **Alla belopp räknas i `lib/job-schema.ts`:** `beräknaSummering` (delsummor) och `beräknaFaktura` (moms 25 %, ROT 30 % på arbetskostnad inkl. moms, att betala). PDF (`faktura-pdf.tsx`) och utskriftsvy (`skriv-ut-klient.tsx`) ritar bara upp resultatet – räkna aldrig belopp i en komponent och duplicera aldrig formeln.
-- **Fast pris** (`fastPris`) ersätter löpande räkning i exkl. moms. Tappa aldrig bort fältet när ett jobb redigeras.
+- **Alla belopp räknas i `lib/job-schema.ts`:** `beräknaSummering` (delsummor) och `beräknaFaktura` (moms, ROT på arbetskostnad inkl. moms, att betala). Satserna står i `MOMS_PROCENT` och `ROT_PROCENT` – skriv aldrig "25 %" eller "30 %" för hand i en vy. PDF (`faktura-pdf.tsx`) och utskriftsvy (`skriv-ut-klient.tsx`) ritar bara upp resultatet – räkna aldrig belopp i en komponent och duplicera aldrig formeln.
+- **Fast pris** (`fastPris`) ersätter löpande räkning i exkl. moms. Tappa aldrig bort fältet när ett jobb redigeras – inte heller `fastPrisArbete`.
+- **ROT** räknas bara på arbete som står på fakturan: löpande arbetstid, eller med fast pris `fastPrisArbete` (krävs då, `refine` i `jobSchema`). ROT gäller bara privatpersoner – `createJob`/`updateJob` stoppar ROT för företagskund.
 - **Status:** ett jobb kan inte vara `betalt` utan att vara `fakturerat` (`refine` i `jobSchema`).
 - **Fakturanummer:**
-  - delas ut av `reserverFakturanummer` i en transaktion med `FOR UPDATE`-lås. Ett jobb som redan har ett nummer behåller det.
+  - delas ut av `utfardaFaktura` (knappen "Utfärda faktura" på fakturasidan) i en transaktion med `FOR UPDATE`-lås, som också sätter `fakturerat`. Ett jobb som redan har ett nummer behåller det.
+  - Fakturasidan visar en förhandsgranskning utan nummer tills fakturan utfärdas. Att öppna sidan får aldrig dela ut ett nummer.
   - `nastaFakturanummer` får aldrig sättas till ett nummer som redan är utfärdat (kontrolleras i `updateCompanySettings`).
   - Ändra aldrig utdelningen till "läs, räkna +1, skriv" i separata steg.
 - **Server actions** (`"use server"`) ska alltid:
@@ -57,13 +59,14 @@ En vanlig Next.js-app (inte monorepo), npm som pakethanterare.
 
 `npm run testdata` lägger in påhittade kunder och jobb (id börjar på `testdata-`), `npm run testdata:ta-bort` tar bort dem. Ska tas bort innan appen används på riktigt.
 
+**Ändras Prisma-schemat:** uppdatera `scripts/testdata.mjs` i samma ändring och kör `npm run testdata` för att se att skriptet fortfarande fungerar. Skriptet skriver kolumnerna direkt och går annars sönder.
+
 ### Kända brister (rätta inte i förbigående – gör ett kort)
 
 Följande bryter mot reglerna ovan i dagens kod. Ny kod ska följa reglerna; fixa de gamla bristerna bara när uppgiften gäller dem.
 
 - Bild-`url`/`key` från klienten valideras inte mot vad som faktiskt laddats upp.
 - Läsningar (`getJobs`, `getCustomers` m.fl.) ligger i `"use server"`-filen och blir därmed anropbara endpoints. `getCompanySettings` skapar företaget om det saknas.
-- Fakturanummer reserveras redan när utskriftssidan öppnas, så ett jobb kan få nummer utan att faktureras.
 - Inga tester, ingen Prettier och ingen CI.
 
 ## Dokumentation – gissa inte

@@ -42,6 +42,7 @@ export default function EditJobClient({
     timpris: job.timpris ?? 0,
     milersattning: job.milersattning ?? 0,
     fastPris: job.fastPris,
+    fastPrisArbete: job.fastPrisArbete,
     rotAvdrag: job.rotAvdrag,
     pagaende: job.pagaende,
     utfort: job.utfort,

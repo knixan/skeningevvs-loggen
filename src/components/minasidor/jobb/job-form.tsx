@@ -6,6 +6,7 @@ import {
   useFieldArray,
   useForm,
   useWatch,
+  type FieldErrors,
   type Resolver,
 } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -46,6 +47,7 @@ import {
   utprisMedPaslag,
   formateraTal,
   kundensNamn,
+  ROT_BARA_PRIVAT,
   type Customer,
 } from "@/lib/job-schema";
 import { deleteUploadedImage } from "@/lib/job-actions";
@@ -62,6 +64,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import {
+  Felmeddelande,
   Field,
   FormSection,
   FormSubsection,
@@ -99,6 +102,7 @@ const tomDefaults: JobInput = {
   internaAnteckningar: "",
   bilder: [],
   fastPris: undefined,
+  fastPrisArbete: undefined,
 };
 
 const sek = (n: number) =>
@@ -107,6 +111,29 @@ const sek = (n: number) =>
     currency: "SEK",
     maximumFractionDigits: 0,
   });
+
+// Ett tomt nummerfält ger annars NaN, som stoppar sparningen.
+/** Tomt fält → 0, t.ex. timpris och priser. */
+const tomtBlirNoll = {
+  setValueAs: (v: string) => (v === "" ? 0 : Number(v)),
+};
+/** Tomt fält → inget värde, för tal som är valfria. */
+const tomtBlirInget = {
+  setValueAs: (v: string) => (v === "" ? undefined : Number(v)),
+};
+
+/** Första felmeddelandet bland formulärets fel, även inne i listor. */
+function forstaFel(fel: FieldErrors): string | undefined {
+  for (const [nyckel, varde] of Object.entries(fel)) {
+    // `ref` pekar på DOM-elementet – gå aldrig in i det
+    if (nyckel === "ref" || !varde || typeof varde !== "object") continue;
+    if ("message" in varde && typeof varde.message === "string" && varde.message)
+      return varde.message;
+    const djupare = forstaFel(varde as FieldErrors);
+    if (djupare) return djupare;
+  }
+  return undefined;
+}
 
 export default function JobForm({
   onSubmit,
@@ -135,8 +162,24 @@ export default function JobForm({
     control,
     setValue,
     getValues,
-    formState: { errors },
+    formState: { errors, submitCount },
   } = form;
+
+  // Efter ett stoppat försök att spara: scrolla till första felet. Körs efter
+  // att felmeddelandena ritats ut – därför en effekt och inte i visaFel.
+  const formRef = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    if (submitCount === 0) return;
+    formRef.current
+      ?.querySelector("[data-fel]")
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [submitCount]);
+
+  function visaFel(fel: FieldErrors<JobInput>) {
+    toast.error("Jobbet sparades inte", {
+      description: forstaFel(fel) ?? "Kontrollera de markerade fälten.",
+    });
+  }
 
   // Inköpspris eller påslag ändrat → räkna om utpriset
   function raknaUtpris(i: number) {
@@ -194,6 +237,9 @@ export default function JobForm({
   const kundSokRef = useRef<HTMLInputElement>(null);
   const valdCustomerId = live.customerId;
   const valdKund = customers.find((c) => c.id === valdCustomerId) ?? null;
+  // ROT gäller bara privatpersoner. Servern stoppar det också.
+  const rotForForetag =
+    (live.rotAvdrag ?? false) && valdKund?.typ === "foretag";
 
   const filtradeKunder = kundSok.trim()
     ? customers.filter((c) => {
@@ -258,9 +304,22 @@ export default function JobForm({
     }
   }
 
+  function sparaJobb(data: JobInput) {
+    const kund = customers.find((c) => c.id === data.customerId);
+    if (data.rotAvdrag && kund?.typ === "foretag") {
+      toast.error("Jobbet sparades inte", { description: ROT_BARA_PRIVAT });
+      return;
+    }
+    onSubmit(data, bilder);
+  }
+
   return (
+    // noValidate: all validering sker med zod, så att felen syns på svenska
+    // vid fältet – webbläsarens egna bubblor (t.ex. för step) stoppar inte.
     <form
-      onSubmit={handleSubmit((data) => onSubmit(data, bilder))}
+      ref={formRef}
+      noValidate
+      onSubmit={handleSubmit(sparaJobb, visaFel)}
       className="space-y-6"
     >
       {/* 1. Kund & planering */}
@@ -381,6 +440,7 @@ export default function JobForm({
             {...register("planeratArbete")}
             placeholder="Vad ska göras? T.ex. byta rör i kök, dra el till garage..."
           />
+          <Felmeddelande fel={errors.planeratArbete?.message} />
           <div className="space-y-2">
             <Label className="flex items-center gap-1.5">
               <ImagePlus className="h-3.5 w-3.5 text-muted-foreground" />
@@ -509,6 +569,7 @@ export default function JobForm({
                     label="Artikelnr"
                     icon={<Hash className="h-3 w-3" />}
                     className="col-span-6 sm:col-span-3"
+                    error={errors.artiklar?.[i]?.artikelnr?.message}
                   >
                     <Input
                       {...register(`artiklar.${i}.artikelnr`)}
@@ -519,6 +580,7 @@ export default function JobForm({
                     label="Återförsäljare"
                     icon={<Store className="h-3 w-3" />}
                     className="col-span-6 sm:col-span-3"
+                    error={errors.artiklar?.[i]?.aterforsaljare?.message}
                   >
                     <Input
                       {...register(`artiklar.${i}.aterforsaljare`)}
@@ -550,13 +612,14 @@ export default function JobForm({
                     label="Inköpspris"
                     icon={<Receipt className="h-3 w-3" />}
                     className="col-span-4 sm:col-span-3"
+                    error={errors.artiklar?.[i]?.inkopspris?.message}
                   >
                     <Input
                       type="number"
                       step="0.01"
                       min="0"
                       {...register(`artiklar.${i}.inkopspris`, {
-                        valueAsNumber: true,
+                        ...tomtBlirNoll,
                         onChange: () => raknaUtpris(i),
                       })}
                       placeholder="kr"
@@ -581,13 +644,14 @@ export default function JobForm({
                     label="Utpris"
                     icon={<Receipt className="h-3 w-3" />}
                     className="col-span-6 sm:col-span-3"
+                    error={errors.artiklar?.[i]?.pris?.message}
                   >
                     <Input
                       type="number"
                       step="0.01"
                       min="0"
                       {...register(`artiklar.${i}.pris`, {
-                        valueAsNumber: true,
+                        ...tomtBlirNoll,
                         onChange: () => raknaPaslag(i),
                       })}
                       placeholder="kr"
@@ -661,21 +725,25 @@ export default function JobForm({
           )}
           {ovrigaKostnader.fields.map((field, i) => (
             <div key={field.id} className="grid grid-cols-12 gap-2 items-start">
-              <div className="col-span-8 sm:col-span-9">
+              <div className="col-span-8 sm:col-span-9 space-y-1">
                 <Input
                   {...register(`ovrigaKostnader.${i}.beskrivning`)}
                   placeholder="T.ex. parkeringskostnad, hyrd utrustning..."
                 />
+                <Felmeddelande
+                  fel={errors.ovrigaKostnader?.[i]?.beskrivning?.message}
+                />
               </div>
-              <div className="col-span-3 sm:col-span-2">
+              <div className="col-span-3 sm:col-span-2 space-y-1">
                 <Input
                   type="number"
                   step="0.01"
                   min="0"
-                  {...register(`ovrigaKostnader.${i}.pris`, {
-                    valueAsNumber: true,
-                  })}
+                  {...register(`ovrigaKostnader.${i}.pris`, tomtBlirNoll)}
                   placeholder="0"
+                />
+                <Felmeddelande
+                  fel={errors.ovrigaKostnader?.[i]?.pris?.message}
                 />
               </div>
               <div className="col-span-1 flex justify-end">
@@ -728,6 +796,7 @@ export default function JobForm({
                   Datum
                 </Label>
                 <Input type="date" {...register(`arbetstider.${i}.datum`)} />
+                <Felmeddelande fel={errors.arbetstider?.[i]?.datum?.message} />
               </div>
               <div className="col-span-4 sm:col-span-6 space-y-1">
                 <Label className="text-xs text-muted-foreground sm:hidden flex items-center gap-1">
@@ -738,10 +807,11 @@ export default function JobForm({
                   type="number"
                   step="0.25"
                   min="0"
-                  {...register(`arbetstider.${i}.timmar`, {
-                    valueAsNumber: true,
-                  })}
+                  {...register(`arbetstider.${i}.timmar`, tomtBlirNoll)}
                   placeholder="t.ex. 7.5"
+                />
+                <Felmeddelande
+                  fel={errors.arbetstider?.[i]?.timmar?.message}
                 />
               </div>
               <div className="col-span-1 flex justify-end">
@@ -791,6 +861,7 @@ export default function JobForm({
                   Datum
                 </Label>
                 <Input type="date" {...register(`resor.${i}.datum`)} />
+                <Felmeddelande fel={errors.resor?.[i]?.datum?.message} />
               </div>
               <div className="col-span-4 sm:col-span-6 space-y-1">
                 <Label className="text-xs text-muted-foreground sm:hidden flex items-center gap-1">
@@ -801,9 +872,10 @@ export default function JobForm({
                   type="number"
                   step="0.1"
                   min="0"
-                  {...register(`resor.${i}.stracka`, { valueAsNumber: true })}
+                  {...register(`resor.${i}.stracka`, tomtBlirNoll)}
                   placeholder="0"
                 />
+                <Felmeddelande fel={errors.resor?.[i]?.stracka?.message} />
               </div>
               <div className="col-span-1 flex justify-end">
                 <Button
@@ -829,6 +901,7 @@ export default function JobForm({
             {...register("utfortArbete")}
             placeholder="Beskriv vad som har gjorts i projektet..."
           />
+          <Felmeddelande fel={errors.utfortArbete?.message} />
         </FormSubsection>
         <FormSubsection icon={NotebookPen} title="Övrigt">
           <Textarea
@@ -836,6 +909,7 @@ export default function JobForm({
             {...register("anteckningar")}
             placeholder="T.ex. tillval, garanti, kommande arbete..."
           />
+          <Felmeddelande fel={errors.anteckningar?.message} />
         </FormSubsection>
       </FormSection>
 
@@ -850,24 +924,26 @@ export default function JobForm({
             <Field
               label="Timpris (kr/h)"
               icon={<Clock className="h-3.5 w-3.5" />}
+              error={errors.timpris?.message}
             >
               <Input
                 type="number"
                 step="50"
                 min="0"
-                {...register("timpris", { valueAsNumber: true })}
+                {...register("timpris", tomtBlirNoll)}
                 placeholder="t.ex. 950"
               />
             </Field>
             <Field
               label="Milersättning (kr/km)"
               icon={<Van className="h-3.5 w-3.5" />}
+              error={errors.milersattning?.message}
             >
               <Input
                 type="number"
                 step="0.5"
                 min="0"
-                {...register("milersattning", { valueAsNumber: true })}
+                {...register("milersattning", tomtBlirNoll)}
                 placeholder="t.ex. 25"
               />
             </Field>
@@ -884,22 +960,43 @@ export default function JobForm({
                   setValue("fastPris", 0, { shouldDirty: true });
                 } else {
                   setValue("fastPris", undefined, { shouldDirty: true });
+                  setValue("fastPrisArbete", undefined, { shouldDirty: true });
                 }
               }}
             />
             {live.fastPris !== undefined && live.fastPris !== null && (
-              <Field
-                label="Fast pris exkl. moms (kr)"
-                icon={<Receipt className="h-3.5 w-3.5" />}
-              >
-                <Input
-                  type="number"
-                  step="100"
-                  min="0"
-                  {...register("fastPris", { valueAsNumber: true })}
-                  placeholder="t.ex. 15000"
-                />
-              </Field>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field
+                  label="Fast pris exkl. moms (kr)"
+                  icon={<Receipt className="h-3.5 w-3.5" />}
+                  error={errors.fastPris?.message}
+                >
+                  <Input
+                    type="number"
+                    step="100"
+                    min="0"
+                    {...register("fastPris", { valueAsNumber: true })}
+                    placeholder="t.ex. 15000"
+                  />
+                </Field>
+                <Field
+                  label="Varav arbetskostnad exkl. moms (kr)"
+                  icon={<Wrench className="h-3.5 w-3.5" />}
+                  error={errors.fastPrisArbete?.message}
+                >
+                  <Input
+                    type="number"
+                    step="100"
+                    min="0"
+                    {...register("fastPrisArbete", tomtBlirInget)}
+                    placeholder="t.ex. 6000"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Står på fakturan. Krävs för ROT-avdrag – ROT räknas bara
+                    på arbetskostnaden.
+                  </p>
+                </Field>
+              </div>
             )}
           </div>
         </FormSubsection>
@@ -953,6 +1050,7 @@ export default function JobForm({
               <Field
                 label="Följ upp senast (valfritt)"
                 icon={<Calendar className="h-3.5 w-3.5" />}
+                error={errors.foljUppDatum?.message}
               >
                 <Input
                   type="date"
@@ -983,6 +1081,7 @@ export default function JobForm({
                 setValue("rotAvdrag", v, { shouldDirty: true })
               }
             />
+            <Felmeddelande fel={rotForForetag ? ROT_BARA_PRIVAT : undefined} />
             <ToggleRow
               id="fakturerat"
               label="Fakturerat"
@@ -997,6 +1096,7 @@ export default function JobForm({
               checked={live.betalt ?? false}
               onChange={(v) => setValue("betalt", v, { shouldDirty: true })}
             />
+            <Felmeddelande fel={errors.betalt?.message} />
           </div>
         </FormSubsection>
 
@@ -1010,6 +1110,7 @@ export default function JobForm({
             {...register("internaAnteckningar")}
             placeholder="T.ex. portkod, att följa upp, egna noteringar..."
           />
+          <Felmeddelande fel={errors.internaAnteckningar?.message} />
         </FormSubsection>
       </FormSection>
 
