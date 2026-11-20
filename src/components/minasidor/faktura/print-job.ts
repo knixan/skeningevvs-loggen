@@ -1,14 +1,16 @@
-import { formateraAntal, type Job } from "@/lib/job-schema";
+import {
+  beräknaSummering,
+  formateraAntal,
+  formateraKr,
+  formateraTal,
+  kundensNamn,
+  type Job,
+} from "@/lib/job-schema";
 import { escapeHtml as e } from "@/lib/utils";
 
 export function printJob(
   job: Job,
-  summary: {
-    artiklarSum: number;
-    totalTimmar: number;
-    totalStracka: number;
-    antalResor: number;
-  },
+  summary: ReturnType<typeof beräknaSummering>,
 ) {
   const status = job.utfort
     ? "Utfört"
@@ -21,9 +23,7 @@ export function printJob(
       ? "#2563eb"
       : "#6b7280";
 
-  const customerName = e(
-    job.customer?.foretagsnamn?.trim() || job.customer?.namn?.trim() || "Jobb",
-  );
+  const customerName = e(kundensNamn(job.customer) || "Jobb");
 
   const customerAddress = [
     job.customer?.adress,
@@ -73,15 +73,15 @@ export function printJob(
             <td class="muted">${e(a.aterforsaljare ?? "")}</td>
             <td class="muted">${e(a.artikelnr ?? "")}</td>
             <td class="right">${e(formateraAntal(a.antal, a.enhet))}</td>
-            <td class="right">${a.pris.toLocaleString("sv-SE")} kr</td>
-            <td class="right bold">${(a.pris * a.antal).toLocaleString("sv-SE")} kr</td>
+            <td class="right">${formateraKr(a.pris)} / ${e((a.enhet ?? "").trim().toLowerCase() || "st")}</td>
+            <td class="right bold">${formateraKr(a.pris * a.antal)}</td>
           </tr>
         `,
           )
           .join("")}
         <tr class="total-row">
           <td colspan="5">Totalt material</td>
-          <td class="right bold">${summary.artiklarSum.toLocaleString("sv-SE")} kr</td>
+          <td class="right bold">${formateraKr(summary.artiklarSum)}</td>
         </tr>
       </tbody>
     </table>
@@ -99,14 +99,14 @@ export function printJob(
             (r) => `
           <tr>
             <td>${e(r.datum)}</td>
-            <td class="right">${r.stracka} km</td>
+            <td class="right">${formateraTal(r.stracka)} km</td>
           </tr>
         `,
           )
           .join("")}
         <tr class="total-row">
           <td>Totalt</td>
-          <td class="right bold">${summary.totalStracka} km</td>
+          <td class="right bold">${formateraTal(summary.totalStracka)} km</td>
         </tr>
       </tbody>
     </table>
@@ -124,14 +124,40 @@ export function printJob(
             (a) => `
           <tr>
             <td>${e(a.datum)}</td>
-            <td class="right">${a.timmar} h</td>
+            <td class="right">${formateraTal(a.timmar)} h</td>
           </tr>
         `,
           )
           .join("")}
         <tr class="total-row">
           <td>Totalt</td>
-          <td class="right bold">${summary.totalTimmar} h</td>
+          <td class="right bold">${formateraTal(summary.totalTimmar)} h</td>
+        </tr>
+      </tbody>
+    </table>
+  `
+      : "";
+
+  const kostnader = job.ovrigaKostnader ?? [];
+  const ovrigaHtml =
+    kostnader.length > 0
+      ? `
+    <table>
+      <thead><tr><th>Beskrivning</th><th class="right">Pris</th></tr></thead>
+      <tbody>
+        ${kostnader
+          .map(
+            (k) => `
+          <tr>
+            <td>${e(k.beskrivning)}</td>
+            <td class="right">${formateraKr(k.pris)}</td>
+          </tr>
+        `,
+          )
+          .join("")}
+        <tr class="total-row">
+          <td>Totalt</td>
+          <td class="right bold">${formateraKr(summary.ovrigaSum)}</td>
         </tr>
       </tbody>
     </table>
@@ -196,14 +222,16 @@ export function printJob(
     ${customerAddress ? `<div class="kontakt-item"><label>Adress</label>${customerAddress}</div>` : ""}
   </div>
   <div class="oversikt">
-    <div class="oversikt-cell"><label>Arbetstid</label><span>${summary.totalTimmar} h</span></div>
-    <div class="oversikt-cell"><label>Körd sträcka</label><span>${summary.totalStracka} km</span></div>
-    <div class="oversikt-cell"><label>Material</label><span>${summary.artiklarSum.toLocaleString("sv-SE")} kr</span></div>
+    <div class="oversikt-cell"><label>Arbetstid</label><span>${formateraTal(summary.totalTimmar)} h</span></div>
+    <div class="oversikt-cell"><label>Körd sträcka</label><span>${formateraTal(summary.totalStracka)} km</span></div>
+    <div class="oversikt-cell"><label>Material</label><span>${formateraKr(summary.artiklarSum)}</span></div>
+    ${job.fastPris != null ? `<div class="oversikt-cell"><label>Fast pris exkl. moms</label><span>${formateraKr(job.fastPris)}</span></div>` : ""}
 
   </div>
   ${job.planeratArbete ? `<section><h4>Planerat arbete</h4><div class="fritext">${e(job.planeratArbete)}</div></section>` : ""}
   ${job.utfortArbete ? `<section><h4>Utfört arbete</h4><div class="fritext">${e(job.utfortArbete)}</div></section>` : ""}
   ${job.artiklar.length > 0 ? `<section><h4>Inköpt material</h4>${artiklarHtml}</section>` : ""}
+  ${kostnader.length > 0 ? `<section><h4>Övriga kostnader</h4>${ovrigaHtml}</section>` : ""}
   ${job.resor.length > 0 ? `<section><h4>Resor</h4>${resorHtml}</section>` : ""}
   ${job.arbetstider.length > 0 ? `<section><h4>Arbetstid</h4>${arbetstidHtml}</section>` : ""}
   ${job.anteckningar ? `<section><h4>Övrigt</h4><p class="anteckningar">${e(job.anteckningar)}</p></section>` : ""}

@@ -7,7 +7,12 @@ import Image from "next/image";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { beräknaSummering, type Job } from "@/lib/job-schema";
+import {
+  beräknaSummering,
+  formateraTal,
+  kundensNamn,
+  type Job,
+} from "@/lib/job-schema";
 import JobOverviewDialog from "../oversikt/job-overview-dialog";
 import {
   StatusBadge,
@@ -39,8 +44,11 @@ export default function JobList({ jobs, onEdit, onDelete }: Props) {
     <div className="grid gap-3">
       {jobs.map((job) => {
         const summary = beräknaSummering(job);
-        const customerDisplayName =
-          job.customer?.foretagsnamn?.trim() || job.customer?.namn?.trim();
+        const customerDisplayName = kundensNamn(job.customer);
+        // Första raden av arbetsbeskrivningen – skiljer jobb för samma kund åt
+        const beskrivning = (job.planeratArbete || job.utfortArbete || "")
+          .trim()
+          .split("\n")[0];
         const customerAddress = [
           job.customer?.adress,
           job.customer?.postnummer,
@@ -60,9 +68,9 @@ export default function JobList({ jobs, onEdit, onDelete }: Props) {
                 <div className="truncate text-lg text-blue-700 font-bold">
                   {customerDisplayName || "Jobb utan kundnamn"}
                 </div>
-                {customerDisplayName && (
+                {beskrivning && (
                   <div className="truncate text-sm font-medium text-foreground/80">
-                    {customerDisplayName}
+                    {beskrivning}
                   </div>
                 )}
                 <div className="truncate text-sm text-muted-foreground">
@@ -84,14 +92,14 @@ export default function JobList({ jobs, onEdit, onDelete }: Props) {
                 <div className="space-y-0.5 text-left text-xs text-muted-foreground sm:text-right">
                   <div>
                     <span className="tabular-nums font-medium text-foreground">
-                      {summary.totalTimmar}
+                      {formateraTal(summary.totalTimmar)}
                     </span>{" "}
                     h arbete
                   </div>
 
                   <div>
                     <span className="tabular-nums font-medium text-foreground">
-                      {summary.totalStracka}
+                      {formateraTal(summary.totalStracka)}
                     </span>{" "}
                     km resa
                   </div>

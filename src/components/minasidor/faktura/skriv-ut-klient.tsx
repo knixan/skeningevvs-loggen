@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import type { Job } from "@/lib/job-schema";
-import { beräknaFaktura, formateraAntal } from "@/lib/job-schema";
+import { beräknaFaktura, formateraAntal, kundensNamn } from "@/lib/job-schema";
 import { Button } from "@/components/ui/button";
 import { Printer } from "lucide-react";
 
@@ -51,11 +51,7 @@ export default function SkrivUtKlient({ job, company, fakturanummer }: Props) {
   const { summary, exklMoms, moms, rotAvdrag, attBetala } = beräknaFaktura(job);
 
   const kund = job.customer;
-  const kundNamn = kund
-    ? kund.typ === "foretag" && kund.foretagsnamn
-      ? kund.foretagsnamn
-      : kund.namn
-    : "Okänd kund";
+  const kundNamn = kundensNamn(kund) || "Okänd kund";
   const kundAdress = kund?.adress ?? "";
   const kundPostOrt = [kund?.postnummer, kund?.ort].filter(Boolean).join(" ");
 

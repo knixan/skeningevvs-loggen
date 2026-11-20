@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { beräknaSummering, type Job } from "@/lib/job-schema";
+import { beräknaSummering, kundensNamn, type Job } from "@/lib/job-schema";
 
 import { Badge, FoljUppBadge, StatusBadge } from "./job-overview-badges";
 import { printJob } from "../faktura/print-job";
@@ -20,6 +20,7 @@ import {
   QuickOverviewSection,
   WorkDescriptionSection,
   MaterialSection,
+  OvrigaKostnaderSection,
   NotesSection,
 } from "./job-overview-sections";
 
@@ -45,9 +46,7 @@ export default function JobOverviewDialog({
             <DialogTitle className="flex min-w-0 flex-1 items-center gap-2 text-lg sm:text-xl">
               <User className="h-5 w-5 shrink-0 text-muted-foreground" />
               <span className="truncate">
-                {job.customer?.foretagsnamn?.trim() ||
-                  job.customer?.namn?.trim() ||
-                  "Jobböversikt"}
+                {kundensNamn(job.customer) || "Jobböversikt"}
               </span>
             </DialogTitle>
             <Button
@@ -78,6 +77,7 @@ export default function JobOverviewDialog({
             <QuickOverviewSection job={job} summary={summary} />
             <WorkDescriptionSection job={job} />
             <MaterialSection job={job} />
+            <OvrigaKostnaderSection job={job} />
             <JobOverviewImages job={job} onSelectImage={onSelectImage} />
             <NotesSection job={job} />
           </div>

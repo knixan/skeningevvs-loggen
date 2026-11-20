@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Search } from "lucide-react";
 import JobList from "@/components/minasidor/jobb/job-list";
 import { deleteJob, getJobs } from "@/lib/job-actions";
-import type { Job } from "@/lib/job-schema";
+import { kundensNamn, type Job } from "@/lib/job-schema";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -207,7 +207,11 @@ export default function JobDashboard({
               }`}
             >
               {f.label}
-              <span className="text-xs opacity-80">({count})</span>
+              {/* Finns fler jobb att ladda räknas bara de inladdade – därav "+" */}
+              <span className="text-xs opacity-80">
+                ({count}
+                {cursor ? "+" : ""})
+              </span>
             </button>
           );
         })}
@@ -261,9 +265,7 @@ export default function JobDashboard({
             <AlertDialogDescription>
               Du håller på att ta bort jobbet för{" "}
               <span className="font-medium text-foreground">
-                {jobToDelete?.customer?.foretagsnamn?.trim() ||
-                  jobToDelete?.customer?.namn?.trim() ||
-                  "detta jobb"}
+                {kundensNamn(jobToDelete?.customer) || "detta jobb"}
               </span>
               . Detta raderar all information, inklusive artiklar, resor,
               arbetstid och uppladdade bilder. Åtgärden kan inte ångras.

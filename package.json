@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "db:migrate": "prisma migrate dev",
+    "testdata": "node scripts/testdata.mjs",
+    "testdata:ta-bort": "node scripts/testdata.mjs --ta-bort",
     "postinstall": "prisma generate"
   },
   "dependencies": {

@@ -40,6 +40,45 @@ export type Customer = CustomerInput & {
   skapad: string;
 };
 
+/**
+ * Kundens namn som det visas överallt (listor, översikt, faktura):
+ * företagsnamnet för företagskunder, annars personens namn. Använd alltid
+ * den här – kolla aldrig bara `foretagsnamn || namn`, för en kund som bytt
+ * typ kan ha ett gammalt företagsnamn kvar.
+ */
+export function kundensNamn(
+  kund?: Pick<CustomerInput, "typ" | "namn" | "foretagsnamn"> | null,
+): string {
+  if (!kund) return "";
+  const foretag = kund.typ === "foretag" ? (kund.foretagsnamn ?? "").trim() : "";
+  return foretag || kund.namn.trim();
+}
+
+/**
+ * Rensar fält som inte hör till kundtypen, så att t.ex. ett personnummer inte
+ * ligger kvar osynligt på en företagskund efter att typen bytts.
+ */
+export function rensaKundFalt(data: CustomerInput): CustomerInput {
+  return data.typ === "foretag"
+    ? { ...data, personnummer: "" }
+    : { ...data, foretagsnamn: "", kontaktperson: "", orgNummer: "" };
+}
+
+/** Tal med svensk decimalkomma och högst två decimaler, t.ex. "7,5". */
+export function formateraTal(n: number): string {
+  return n.toLocaleString("sv-SE", { maximumFractionDigits: 2 });
+}
+
+/** Belopp i kronor med ören bara när de finns, t.ex. "1 250 kr", "12,50 kr". */
+export function formateraKr(n: number): string {
+  return n.toLocaleString("sv-SE", {
+    style: "currency",
+    currency: "SEK",
+    minimumFractionDigits: Number.isInteger(n) ? 0 : 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 // ============================================================
 // Jobb-schema
 // ============================================================
@@ -77,15 +116,22 @@ export function formateraAntal(antal: number, enhet?: string) {
   return `${antal.toLocaleString("sv-SE", { maximumFractionDigits: 2 })} ${e}`;
 }
 
+// <input type="date"> ger alltid YYYY-MM-DD. Kontrolleras så att servern
+// aldrig försöker spara ett ogiltigt datum.
+const datumSchema = z
+  .string()
+  .min(1, "Datum krävs")
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Ogiltigt datum");
+
 export const resaSchema = z.object({
   id: z.string().optional(),
-  datum: z.string().min(1, "Datum krävs"),
+  datum: datumSchema,
   stracka: z.coerce.number().min(0, "Sträcka får inte vara negativ"),
 });
 
 export const arbetstidSchema = z.object({
   id: z.string().optional(),
-  datum: z.string().min(1, "Datum krävs"),
+  datum: datumSchema,
   timmar: z.coerce.number().min(0, "Timmar får inte vara negativt"),
 });
 

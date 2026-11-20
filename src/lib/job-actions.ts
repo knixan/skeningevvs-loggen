@@ -6,12 +6,21 @@ import type { Prisma } from "@prisma/client";
 import { UTApi } from "uploadthing/server";
 import { auth } from "./auth";
 import { prisma } from "./prisma";
+import type { z } from "zod";
 import {
   companySchema,
+  customerSchema,
+  jobSchema,
+  rensaKundFalt,
   type JobInput,
   type CustomerInput,
   type CompanyInput,
 } from "./job-schema";
+
+/** Första valideringsfelet som ett svenskt meddelande till användaren. */
+function forstaFel(error: z.ZodError) {
+  return error.issues[0]?.message ?? "Ogiltiga uppgifter";
+}
 
 const utapi = new UTApi();
 const DEFAULT_COMPANY_NAME = "Mitt företag";
@@ -108,9 +117,9 @@ function mapCustomer(c: NonNullable<JobWithRelations["customer"]>) {
 }
 
 /**
- * Uppföljningsdatum till databasen. Kontrolleras här på servern eftersom
- * createJob/updateJob ännu inte validerar hela jobbet med zod.
- * Inget datum om bocken är av eller om datumet är tomt/ogiltigt.
+ * Uppföljningsdatum till databasen (formatet är redan kontrollerat av
+ * jobSchema). Inget datum om bocken är av, datumet är tomt eller om det är
+ * ett omöjligt datum som 2026-02-31.
  */
 function foljUppDatumTillDb(data: JobInput): Date | null {
   if (!data.foljUpp || !data.foljUppDatum) return null;
@@ -331,33 +340,55 @@ export async function getCustomer(id: string) {
   return mapCustomer(c);
 }
 
+/** Validerar kunddata på servern och gör om den till databasfält. */
+function kundTillDb(
+  data: unknown,
+): { ok: true; data: Omit<Prisma.CustomerCreateInput, "company"> } | {
+  ok: false;
+  error: string;
+} {
+  const parsed = customerSchema.safeParse(data);
+  if (!parsed.success) return { ok: false, error: forstaFel(parsed.error) };
+  const d = rensaKundFalt(parsed.data);
+  return {
+    ok: true,
+    data: {
+      typ: d.typ,
+      namn: d.namn,
+      adress: d.adress ?? "",
+      postnummer: d.postnummer ?? "",
+      ort: d.ort ?? "",
+      telefon: d.telefon ?? "",
+      epost: d.epost ?? "",
+      personnummer: d.personnummer ?? "",
+      foretagsnamn: d.foretagsnamn ?? "",
+      kontaktperson: d.kontaktperson ?? "",
+      orgNummer: d.orgNummer ?? "",
+      fastighetsbeteckning: d.fastighetsbeteckning ?? "",
+      lagenhetsnummer: d.lagenhetsnummer ?? "",
+      bostadsrattsforening: d.bostadsrattsforening ?? "",
+    },
+  };
+}
+
 export async function createCustomer(data: CustomerInput) {
   const ctx = await requireCompany();
   if ("error" in ctx) return ctx;
   const { company } = ctx;
 
-  const customer = await prisma.customer.create({
-    data: {
-      companyId: company.id,
-      typ: data.typ,
-      namn: data.namn.trim(),
-      adress: data.adress ?? "",
-      postnummer: data.postnummer ?? "",
-      ort: data.ort ?? "",
-      telefon: data.telefon ?? "",
-      epost: data.epost ?? "",
-      personnummer: data.personnummer ?? "",
-      foretagsnamn: data.foretagsnamn ?? "",
-      kontaktperson: data.kontaktperson ?? "",
-      orgNummer: data.orgNummer ?? "",
-      fastighetsbeteckning: data.fastighetsbeteckning ?? "",
-      lagenhetsnummer: data.lagenhetsnummer ?? "",
-      bostadsrattsforening: data.bostadsrattsforening ?? "",
-    },
-  });
+  const kund = kundTillDb(data);
+  if (!kund.ok) return kund;
 
-  revalidatePath("/mina-sidor/kunder");
-  return { ok: true as const, id: customer.id };
+  try {
+    const customer = await prisma.customer.create({
+      data: { ...kund.data, companyId: company.id },
+    });
+    revalidatePath("/mina-sidor/kunder");
+    return { ok: true as const, id: customer.id };
+  } catch (err) {
+    console.error("Kunde inte skapa kund:", err);
+    return { ok: false, error: "Kunde inte spara kunden. Försök igen." };
+  }
 }
 
 export async function updateCustomer(id: string, data: CustomerInput) {
@@ -365,31 +396,22 @@ export async function updateCustomer(id: string, data: CustomerInput) {
   if ("error" in ctx) return ctx;
   const { company } = ctx;
 
+  const kund = kundTillDb(data);
+  if (!kund.ok) return kund;
+
   const existing = await prisma.customer.findFirst({
     where: { id, companyId: company.id },
   });
   if (!existing) return { ok: false, error: "Kund hittades inte" };
 
-  await prisma.customer.update({
-    where: { id },
-    data: {
-      typ: data.typ,
-      namn: data.namn.trim(),
-      adress: data.adress ?? "",
-      postnummer: data.postnummer ?? "",
-      ort: data.ort ?? "",
-      telefon: data.telefon ?? "",
-      epost: data.epost ?? "",
-      personnummer: data.personnummer ?? "",
-      foretagsnamn: data.foretagsnamn ?? "",
-      kontaktperson: data.kontaktperson ?? "",
-      orgNummer: data.orgNummer ?? "",
-      fastighetsbeteckning: data.fastighetsbeteckning ?? "",
-      lagenhetsnummer: data.lagenhetsnummer ?? "",
-      bostadsrattsforening: data.bostadsrattsforening ?? "",
-    },
-  });
+  try {
+    await prisma.customer.update({ where: { id }, data: kund.data });
+  } catch (err) {
+    console.error("Kunde inte uppdatera kund:", err);
+    return { ok: false, error: "Kunde inte spara kunden. Försök igen." };
+  }
 
+  revalidatePath("/mina-sidor");
   revalidatePath("/mina-sidor/kunder");
   revalidatePath(`/mina-sidor/kunder/${id}/redigera`);
   return { ok: true as const };
@@ -405,13 +427,28 @@ export async function deleteCustomer(id: string) {
   });
   if (!existing) return { ok: false, error: "Kund hittades inte" };
 
-  // Koppla loss jobben (sätt customerId = null) istället för att radera dem
-  await prisma.job.updateMany({
-    where: { customerId: id },
-    data: { customerId: null },
+  // Fakturan hämtar mottagaren från kunden. Tas kunden bort skulle en redan
+  // utfärdad faktura sakna mottagare om den skrivs ut igen.
+  const fakturerade = await prisma.job.count({
+    where: {
+      customerId: id,
+      OR: [{ fakturerat: true }, { fakturanummer: { not: null } }],
+    },
   });
+  if (fakturerade > 0) {
+    return {
+      ok: false,
+      error: `Kunden har ${fakturerade} ${fakturerade === 1 ? "fakturerat jobb" : "fakturerade jobb"} och kan inte tas bort.`,
+    };
+  }
 
-  await prisma.customer.delete({ where: { id } });
+  try {
+    // Kundens jobb kopplas loss (customerId = null) av onDelete: SetNull
+    await prisma.customer.delete({ where: { id } });
+  } catch (err) {
+    console.error("Kunde inte ta bort kund:", err);
+    return { ok: false, error: "Kunde inte ta bort kunden. Försök igen." };
+  }
 
   revalidatePath("/mina-sidor/kunder");
   revalidatePath("/mina-sidor");
@@ -443,7 +480,9 @@ export async function getJobs(cursor?: string) {
       customer: true,
       ovrigaKostnader: true,
     },
-    orderBy: { skapad: "desc" },
+    // id som andra sorteringsnyckel: jobb med exakt samma tid måste ändå få en
+    // fast ordning, annars kan "Ladda fler" hoppa över eller upprepa jobb.
+    orderBy: [{ skapad: "desc" }, { id: "desc" }],
     take: JOBS_PER_PAGE + 1,
     ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
   });
@@ -483,12 +522,16 @@ export async function getJob(id: string) {
 }
 
 export async function createJob(
-  data: JobInput,
+  input: JobInput,
   bilder: { url: string; key: string }[] = [],
 ) {
   const ctx = await requireCompany();
   if ("error" in ctx) return ctx;
   const { company } = ctx;
+
+  const parsed = jobSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: forstaFel(parsed.error) };
+  const data = parsed.data;
 
   if (data.customerId) {
     const customer = await prisma.customer.findFirst({
@@ -497,10 +540,26 @@ export async function createJob(
     if (!customer) return { ok: false, error: "Kund hittades inte" };
   }
 
-  await prisma.job.create({
+  try {
+    await skapaJobb(company.id, data, bilder);
+  } catch (err) {
+    console.error("Kunde inte skapa jobb:", err);
+    return { ok: false, error: "Kunde inte spara jobbet. Försök igen." };
+  }
+
+  revalidatePath("/mina-sidor");
+  return { ok: true as const };
+}
+
+function skapaJobb(
+  companyId: string,
+  data: JobInput,
+  bilder: { url: string; key: string }[],
+) {
+  return prisma.job.create({
     data: {
-      companyId: company.id,
-      customerId: data.customerId ?? null,
+      companyId,
+      customerId: data.customerId || null,
       rotAvdrag: data.rotAvdrag,
       timpris: data.timpris ?? 0,
       milersattning: data.milersattning ?? 0,
@@ -549,19 +608,20 @@ export async function createJob(
       },
     },
   });
-
-  revalidatePath("/mina-sidor");
-  return { ok: true as const };
 }
 
 export async function updateJob(
   id: string,
-  data: JobInput,
+  input: JobInput,
   bilder: { url: string; key: string }[] = [],
 ) {
   const ctx = await requireExistingCompany();
   if ("error" in ctx) return ctx;
   const { company } = ctx;
+
+  const parsed = jobSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: forstaFel(parsed.error) };
+  const data = parsed.data;
 
   const existing = await prisma.job.findFirst({
     where: { id, companyId: company.id },
@@ -609,6 +669,20 @@ export async function updateJob(
   const deleteKostnaderIds = existingKostnaderIds.filter(
     (i) => !keepKostnaderIds.includes(i),
   );
+
+  // Varje rad-id från klienten måste höra till just det här jobbet – annars
+  // skulle man kunna ändra rader på ett annat jobb (eller ett annat företags).
+  const främmandeRad =
+    keepArtiklarIds.some((i) => !existingArtiklarIds.includes(i)) ||
+    keepResorIds.some((i) => !existingResorIds.includes(i)) ||
+    keepArbetspassIds.some((i) => !existingArbetspassIds.includes(i)) ||
+    keepKostnaderIds.some((i) => !existingKostnaderIds.includes(i));
+  if (främmandeRad) {
+    return {
+      ok: false,
+      error: "Jobbet har ändrats sedan du öppnade det. Ladda om sidan.",
+    };
+  }
 
   try {
     await prisma.$transaction([
@@ -696,7 +770,7 @@ export async function updateJob(
       prisma.job.update({
         where: { id },
         data: {
-          customerId: data.customerId ?? null,
+          customerId: data.customerId || null,
           rotAvdrag: data.rotAvdrag,
           timpris: data.timpris ?? 0,
           milersattning: data.milersattning ?? 0,

@@ -44,13 +44,16 @@ import {
   beräknaSummering,
   beräknaPaslag,
   utprisMedPaslag,
+  formateraTal,
+  kundensNamn,
   type Customer,
 } from "@/lib/job-schema";
 import { deleteUploadedImage } from "@/lib/job-actions";
 import AhlsellSok from "./ahlsell-sok";
 import { idag } from "@/lib/datum";
 import { useUploadThing } from "@/lib/uploadthing-client";
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
+import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -165,6 +168,26 @@ export default function JobForm({
   const live = useWatch({ control }) as Partial<JobInput>;
   const summering = beräknaSummering({ ...tomDefaults, ...live } as JobInput);
 
+  // "Skapa ny kund" öppnar en ny flik. När man kommer tillbaka hämtas
+  // kundlistan på nytt med router.refresh() – det behåller det man redan
+  // fyllt i här, till skillnad från att ladda om sidan.
+  const router = useRouter();
+  const vantarPaNyKund = useRef(false);
+  useEffect(() => {
+    function hamtaNyaKunder() {
+      if (document.visibilityState !== "visible" || !vantarPaNyKund.current)
+        return;
+      vantarPaNyKund.current = false;
+      router.refresh();
+    }
+    document.addEventListener("visibilitychange", hamtaNyaKunder);
+    window.addEventListener("focus", hamtaNyaKunder);
+    return () => {
+      document.removeEventListener("visibilitychange", hamtaNyaKunder);
+      window.removeEventListener("focus", hamtaNyaKunder);
+    };
+  }, [router]);
+
   // Kundväljare
   const [kundSok, setKundSok] = useState("");
   const [kundFokus, setKundFokus] = useState(false);
@@ -246,11 +269,7 @@ export default function JobForm({
           {valdKund ? (
             <div className="flex items-center justify-between rounded-lg border bg-muted/40 px-4 py-3">
               <div className="space-y-0.5">
-                <p className="font-medium text-sm">
-                  {valdKund.typ === "foretag" && valdKund.foretagsnamn
-                    ? valdKund.foretagsnamn
-                    : valdKund.namn}
-                </p>
+                <p className="font-medium text-sm">{kundensNamn(valdKund)}</p>
                 <p className="text-xs text-muted-foreground">
                   {valdKund.typ === "foretag" && valdKund.kontaktperson
                     ? `${valdKund.kontaktperson} · `
@@ -281,7 +300,12 @@ export default function JobForm({
                   Befintlig kund
                 </SekundarKnapp>
                 <SekundarKnapp asChild>
-                  <a href="/mina-sidor/kunder/ny" target="_blank" rel="noreferrer">
+                  <a
+                    href="/mina-sidor/kunder/ny"
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={() => (vantarPaNyKund.current = true)}
+                  >
                     <UserPlus className="h-4 w-4" />
                     Skapa ny kund
                   </a>
@@ -307,6 +331,7 @@ export default function JobForm({
                       href="/mina-sidor/kunder/ny"
                       className="underline"
                       target="_blank"
+                      onClick={() => (vantarPaNyKund.current = true)}
                     >
                       Lägg till en kund
                     </a>
@@ -331,9 +356,7 @@ export default function JobForm({
                         }}
                       >
                         <p className="text-sm font-medium">
-                          {c.typ === "foretag" && c.foretagsnamn
-                            ? c.foretagsnamn
-                            : c.namn}
+                          {kundensNamn(c)}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {c.typ === "foretag" && c.kontaktperson
@@ -1017,12 +1040,12 @@ export default function JobForm({
             />
           )}
           <SumRow
-            label={`Arbetstid (${summering.totalTimmar} h × ${summering.timpris} kr/h)`}
+            label={`Arbetstid (${formateraTal(summering.totalTimmar)} h × ${formateraTal(summering.timpris)} kr/h)`}
             icon={<Clock className="h-3.5 w-3.5" />}
             value={sek(summering.arbetstidSum)}
           />
           <SumRow
-            label={`Resor (${summering.totalStracka} km × ${summering.milersattning} kr/km)`}
+            label={`Resor (${formateraTal(summering.totalStracka)} km × ${formateraTal(summering.milersattning)} kr/km)`}
             icon={<Van className="h-3.5 w-3.5" />}
             value={sek(summering.resorSum)}
           />

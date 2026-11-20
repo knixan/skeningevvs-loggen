@@ -7,7 +7,7 @@ import {
   StyleSheet,
 } from "@react-pdf/renderer";
 import type { Job, CompanyInput } from "@/lib/job-schema";
-import { beräknaFaktura, formateraAntal } from "@/lib/job-schema";
+import { beräknaFaktura, formateraAntal, kundensNamn } from "@/lib/job-schema";
 
 export type PdfCompany = CompanyInput & { logoUrl?: string };
 
@@ -142,11 +142,7 @@ export function FakturaPdf({
   const arFastPris = job.fastPris != null;
 
   const kund = job.customer;
-  const kundNamn = kund
-    ? kund.typ === "foretag" && kund.foretagsnamn
-      ? kund.foretagsnamn
-      : kund.namn
-    : "Okänd kund";
+  const kundNamn = kundensNamn(kund) || "Okänd kund";
 
   const fakturaRader: [string, string, boolean?][] = [
     ["Fakturanummer", String(fakturanummer), true],

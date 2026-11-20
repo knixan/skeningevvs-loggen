@@ -50,13 +50,17 @@ En vanlig Next.js-app (inte monorepo), npm som pakethanterare.
 - **UploadThing:** radera filer från UploadThing först **efter** att databasen har sparats (se `updateJob`) – aldrig direkt vid klick. Radera bara nycklar som tillhör det här företaget. Radera aldrig "allt som inte används".
 - **Datum:** resor och arbetspass är `@db.Date` och skickas som `YYYY-MM-DD`. Standarddatum räknas i lokal tid (`idag()` i `lib/datum.ts`), inte med `toISOString()` (UTC).
 - **Personnummer** visas bara där det behövs (ROT, faktura).
+- **Kundnamn** visas alltid med `kundensNamn()` från `lib/job-schema.ts` – aldrig `foretagsnamn || namn` direkt.
+- **En kund med fakturerade jobb kan inte tas bort** (fakturan hämtar mottagaren från kunden).
+
+### Testdata
+
+`npm run testdata` lägger in påhittade kunder och jobb (id börjar på `testdata-`), `npm run testdata:ta-bort` tar bort dem. Ska tas bort innan appen används på riktigt.
 
 ### Kända brister (rätta inte i förbigående – gör ett kort)
 
 Följande bryter mot reglerna ovan i dagens kod. Ny kod ska följa reglerna; fixa de gamla bristerna bara när uppgiften gäller dem.
 
-- `createJob`, `updateJob`, `createCustomer` och `updateCustomer` validerar inte med zod på servern (bara `updateCompanySettings` gör det).
-- `updateJob` kontrollerar inte att id:n på underrader från klienten tillhör jobbet.
 - Bild-`url`/`key` från klienten valideras inte mot vad som faktiskt laddats upp.
 - Läsningar (`getJobs`, `getCustomers` m.fl.) ligger i `"use server"`-filen och blir därmed anropbara endpoints. `getCompanySettings` skapar företaget om det saknas.
 - Fakturanummer reserveras redan när utskriftssidan öppnas, så ett jobb kan få nummer utan att faktureras.
