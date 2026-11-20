@@ -7,7 +7,7 @@ import {
   StyleSheet,
 } from "@react-pdf/renderer";
 import type { Job, CompanyInput } from "@/lib/job-schema";
-import { beräknaFaktura } from "@/lib/job-schema";
+import { beräknaFaktura, formateraAntal } from "@/lib/job-schema";
 
 export type PdfCompany = CompanyInput & { logoUrl?: string };
 
@@ -257,7 +257,7 @@ export function FakturaPdf({
                     </Text>
                   ) : null}
                 </View>
-                <Text style={[S.tdRight, { width: 44 }]}>{a.antal} st</Text>
+                <Text style={[S.tdRight, { width: 44 }]}>{formateraAntal(a.antal, a.enhet)}</Text>
                 <Text style={[S.tdRight, { width: 62 }]}>{kr(a.pris)}</Text>
                 <Text style={[S.tdRight, S.tdBold, { width: 68 }]}>
                   {kr(a.pris * a.antal)}

@@ -8,10 +8,16 @@ import { Input } from "@/components/ui/input";
 import { Field, FormSection } from "@/components/minasidor/formular";
 import authClient from "@/lib/auth-client";
 import DeleteAccountButton from "./delete-account-button";
+import AhlsellPrislista, { type AhlsellStatus } from "./ahlsell-prislista";
 
-export default function InstallningarKlient() {
+export default function InstallningarKlient({
+  ahlsell,
+}: {
+  ahlsell: AhlsellStatus;
+}) {
   return (
     <div className="space-y-6 max-w-xl">
+      <AhlsellPrislista status={ahlsell} />
       <BytLosenordForm />
       <FarligZonSection />
     </div>

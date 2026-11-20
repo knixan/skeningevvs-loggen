@@ -1,4 +1,4 @@
-import { type Job } from "@/lib/job-schema";
+import { formateraAntal, type Job } from "@/lib/job-schema";
 import { escapeHtml as e } from "@/lib/utils";
 
 export function printJob(
@@ -72,7 +72,7 @@ export function printJob(
             <td>${e(a.namn)}</td>
             <td class="muted">${e(a.aterforsaljare ?? "")}</td>
             <td class="muted">${e(a.artikelnr ?? "")}</td>
-            <td class="right">${a.antal} st</td>
+            <td class="right">${e(formateraAntal(a.antal, a.enhet))}</td>
             <td class="right">${a.pris.toLocaleString("sv-SE")} kr</td>
             <td class="right bold">${(a.pris * a.antal).toLocaleString("sv-SE")} kr</td>
           </tr>

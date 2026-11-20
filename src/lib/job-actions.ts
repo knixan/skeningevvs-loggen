@@ -147,6 +147,7 @@ function mapJob(j: JobWithRelations) {
       inkopspris: a.inkopspris,
       pris: a.pris,
       antal: a.antal,
+      enhet: a.enhet ?? "",
     })),
     resor: j.resor.map((r) => ({
       id: r.id,
@@ -522,6 +523,7 @@ export async function createJob(
           inkopspris: a.inkopspris ?? 0,
           pris: a.pris,
           antal: a.antal,
+          enhet: a.enhet ?? "",
         })),
       },
       resor: {
@@ -623,6 +625,7 @@ export async function updateJob(
                 inkopspris: a.inkopspris ?? 0,
                 pris: a.pris,
                 antal: a.antal,
+                enhet: a.enhet ?? "",
               },
             })
           : prisma.article.create({
@@ -634,6 +637,7 @@ export async function updateJob(
                 inkopspris: a.inkopspris ?? 0,
                 pris: a.pris,
                 antal: a.antal,
+                enhet: a.enhet ?? "",
               },
             }),
       ),

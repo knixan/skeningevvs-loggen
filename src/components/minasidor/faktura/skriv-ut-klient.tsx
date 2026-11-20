@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import type { Job } from "@/lib/job-schema";
-import { beräknaFaktura } from "@/lib/job-schema";
+import { beräknaFaktura, formateraAntal } from "@/lib/job-schema";
 import { Button } from "@/components/ui/button";
 import { Printer } from "lucide-react";
 
@@ -308,7 +308,7 @@ export default function SkrivUtKlient({ job, company, fakturanummer }: Props) {
                       </span>
                     )}
                   </td>
-                  <td className="right">{a.antal} st</td>
+                  <td className="right">{formateraAntal(a.antal, a.enhet)}</td>
                   <td className="right">{a.pris.toLocaleString("sv-SE")} kr</td>
                   <td className="right bold">
                     {(a.pris * a.antal).toLocaleString("sv-SE")} kr

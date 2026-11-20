@@ -13,7 +13,7 @@ import {
   Van,
   Wrench,
 } from "lucide-react";
-import { beräknaSummering, type Job } from "@/lib/job-schema";
+import { beräknaSummering, formateraAntal, type Job } from "@/lib/job-schema";
 import { InfoItem, toTelHref } from "./job-overview-badges";
 
 export function ContactSection({ job }: { job: Job }) {
@@ -161,7 +161,7 @@ export function MaterialSection({ job }: { job: Job }) {
                       {artikel.aterforsaljare && (
                         <span>{artikel.aterforsaljare}</span>
                       )}
-                      <span>{artikel.antal} st</span>
+                      <span>{formateraAntal(artikel.antal, artikel.enhet)}</span>
                     </div>
                   </div>
                   <div className="text-left text-sm tabular-nums sm:text-right">

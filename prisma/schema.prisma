@@ -107,9 +107,21 @@ model Company {
   drojsmalsranta     Float  @default(0)
   fakturatext        String @default("")
 
-  owner     User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  jobs      Job[]
-  customers Customer[]
+  // Ahlsell-prislista. Bara artiklar med ahlsellImportId lika med det här
+  // fältet är aktiva – en inläsning som avbryts halvvägs syns alltså aldrig.
+  ahlsellImportId       String?
+  ahlsellImporteradVid  DateTime?
+  ahlsellAntalArtiklar  Int       @default(0)
+  ahlsellAvtalInlast    Boolean   @default(false)
+  // Avtalets slutdatum som det står i avtalsfilen (ÅÅMMDD), tomt om okänt
+  ahlsellAvtalSlutdatum String    @default("")
+  // Påslag i procent som föreslås som utpris när en Ahlsell-artikel väljs
+  materialPaslag        Float     @default(0)
+
+  owner           User             @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  jobs            Job[]
+  customers       Customer[]
+  ahlsellArtiklar AhlsellArtikel[]
 
   @@map("company")
 }
@@ -174,9 +186,9 @@ model Job {
   fastPris      Float?
 
   // Anteckningar
-  anteckningar   String @default("")
-  utfortArbete   String @default("")
-  planeratArbete String @default("")
+  anteckningar        String @default("")
+  utfortArbete        String @default("")
+  planeratArbete      String @default("")
   // Visas aldrig för kunden (varken på faktura eller utskrift)
   internaAnteckningar String @default("")
 
@@ -209,12 +221,40 @@ model Article {
   aterforsaljare String @default("")
   inkopspris     Float  @default(0)
   pris           Float
-  antal          Int    @default(1)
+  // Decimaltal – rör och kabel köps per meter
+  antal          Float  @default(1)
+  // ST, M, KG … tomt = styck
+  enhet          String @default("")
 
   job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
   @@index([jobId])
   @@map("article")
+}
+
+// En rad ur Ahlsells prislista (beräkningsgrund + kundavtal), se lib/ahlsell.ts.
+// Priser i ören för att slippa avrundningsfel.
+model AhlsellArtikel {
+  id        String @id @default(cuid())
+  companyId String
+  importId  String
+
+  artikelnr            String
+  benamning            String
+  enhet                String  @default("")
+  materialklass        String  @default("")
+  lagerford            Boolean @default(false)
+  // Antal som måste beställas åt gången (1 = valfritt antal)
+  bestallningsmultipel Float   @default(1)
+  // Grundnettopris före kundens rabatter. 0 = pris på begäran.
+  grundprisOre         Int
+  // Kundens pris enligt avtalsfilen (= grundpris om ingen avtalsfil lästs in)
+  nettoprisOre         Int
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, importId])
+  @@map("ahlsell_artikel")
 }
 
 model Trip {

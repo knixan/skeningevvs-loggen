@@ -44,6 +44,8 @@ import {
   type Customer,
 } from "@/lib/job-schema";
 import { deleteUploadedImage } from "@/lib/job-actions";
+import { foreslagetUtpris } from "@/lib/ahlsell";
+import AhlsellSok from "./ahlsell-sok";
 import { idag } from "@/lib/datum";
 import { useUploadThing } from "@/lib/uploadthing-client";
 import { useState, useRef } from "react";
@@ -386,6 +388,7 @@ export default function JobForm({
                   inkopspris: 0,
                   pris: 0,
                   antal: 1,
+                  enhet: "",
                 })
               }
             >
@@ -393,6 +396,25 @@ export default function JobForm({
             </SekundarKnapp>
           }
         >
+          <AhlsellSok
+            onValj={(t, paslag) => {
+              const inkopspris = t.nettoprisOre / 100;
+              artiklar.append({
+                namn: t.benamning,
+                artikelnr: t.artikelnr,
+                aterforsaljare: "Ahlsell",
+                inkopspris,
+                // Inget påslag inställt → utpriset fylls i för hand
+                pris:
+                  paslag > 0 && inkopspris > 0
+                    ? foreslagetUtpris(inkopspris, paslag)
+                    : 0,
+                antal:
+                  t.bestallningsmultipel > 1 ? t.bestallningsmultipel : 1,
+                enhet: t.enhet,
+              });
+            }}
+          />
           <div className="hidden sm:grid sm:grid-cols-12 gap-2 text-xs font-medium text-muted-foreground px-1">
             <div className="col-span-2 flex items-center gap-1.5">
               <Tag className="h-3.5 w-3.5" />
@@ -464,11 +486,21 @@ export default function JobForm({
                 </Label>
                 <Input
                   type="number"
-                  step="1"
-                  min="1"
+                  step="any"
+                  min="0"
                   {...register(`artiklar.${i}.antal`, { valueAsNumber: true })}
                   placeholder="Ant."
                 />
+                {live.artiklar?.[i]?.enhet && (
+                  <p className="text-xs text-muted-foreground text-center">
+                    {live.artiklar[i].enhet.toLowerCase()}
+                  </p>
+                )}
+                {errors.artiklar?.[i]?.antal && (
+                  <p className="text-xs text-destructive">
+                    {errors.artiklar[i]?.antal?.message}
+                  </p>
+                )}
               </div>
               <div className="col-span-4 sm:col-span-2 space-y-1">
                 <Label className="text-xs text-muted-foreground sm:hidden flex items-center gap-1">

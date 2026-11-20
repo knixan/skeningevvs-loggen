@@ -51,8 +51,16 @@ export const articleSchema = z.object({
   aterforsaljare: z.string().trim().max(120).optional().default(""),
   inkopspris: z.coerce.number().min(0).optional().default(0),
   pris: z.coerce.number().min(0, "Pris får inte vara negativt"),
-  antal: z.coerce.number().min(1, "Minst 1").default(1),
+  // Decimaler tillåtna – rör och kabel köps per meter
+  antal: z.coerce.number().positive("Måste vara större än 0").default(1),
+  enhet: z.string().trim().max(10).optional().default(""),
 });
+
+/** "2,5 m", "3 st" – enhet saknas = styck. */
+export function formateraAntal(antal: number, enhet?: string) {
+  const e = (enhet ?? "").trim().toLowerCase() || "st";
+  return `${antal.toLocaleString("sv-SE", { maximumFractionDigits: 2 })} ${e}`;
+}
 
 export const resaSchema = z.object({
   id: z.string().optional(),
