@@ -116,12 +116,12 @@ export function formateraAntal(antal: number, enhet?: string) {
   return `${antal.toLocaleString("sv-SE", { maximumFractionDigits: 2 })} ${e}`;
 }
 
-// <input type="date"> ger alltid YYYY-MM-DD. Kontrolleras så att servern
-// aldrig försöker spara ett ogiltigt datum.
+// YYYY-MM-DD som måste vara ett datum som finns. Det räcker inte att kolla
+// formatet: new Date("2026-02-31") ger inget fel utan blir tyst 3 mars.
 const datumSchema = z
   .string()
   .min(1, "Datum krävs")
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Ogiltigt datum");
+  .pipe(z.iso.date({ error: "Ogiltigt datum" }));
 
 export const resaSchema = z.object({
   id: z.string().optional(),
@@ -157,8 +157,7 @@ export const jobSchema = z
     foljUpp: z.boolean().default(false),
     // Tom sträng = inget datum valt (så skickar <input type="date"> ett tomt fält)
     foljUppDatum: z
-      .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/, "Ogiltigt datum")
+      .iso.date({ error: "Ogiltigt datum" })
       .optional()
       .or(z.literal("")),
 

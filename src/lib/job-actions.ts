@@ -117,15 +117,13 @@ function mapCustomer(c: NonNullable<JobWithRelations["customer"]>) {
 }
 
 /**
- * Uppföljningsdatum till databasen (formatet är redan kontrollerat av
- * jobSchema). Inget datum om bocken är av, datumet är tomt eller om det är
- * ett omöjligt datum som 2026-02-31.
+ * Uppföljningsdatum till databasen. Inget datum om bocken är av eller om
+ * datumet är tomt. Att datumet finns på riktigt har jobSchema redan
+ * kontrollerat (z.iso.date) – anropa bara med data som gått genom schemat.
  */
 function foljUppDatumTillDb(data: JobInput): Date | null {
   if (!data.foljUpp || !data.foljUppDatum) return null;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(data.foljUppDatum)) return null;
-  const datum = new Date(data.foljUppDatum);
-  return Number.isNaN(datum.getTime()) ? null : datum;
+  return new Date(data.foljUppDatum);
 }
 
 function mapJob(j: JobWithRelations) {
