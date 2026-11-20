@@ -54,7 +54,22 @@ export const articleSchema = z.object({
   // Decimaler tillåtna – rör och kabel köps per meter
   antal: z.coerce.number().positive("Måste vara större än 0").default(1),
   enhet: z.string().trim().max(10).optional().default(""),
+  // Bara ett hjälpfält i formuläret för att räkna fram utpriset – sparas
+  // aldrig. Jobbet sparar utpriset (`pris`) så att en faktura inte ändras om
+  // påslaget i inställningarna ändras senare. NaN = tomt fält.
+  paslag: z.union([z.number(), z.nan()]).optional(),
 });
+
+/** Utpris i kronor: inköpspris + påslag i procent, avrundat till ören. */
+export function utprisMedPaslag(inkopspris: number, paslagProcent: number) {
+  return Math.round(inkopspris * (1 + paslagProcent / 100) * 100) / 100;
+}
+
+/** Påslaget i procent (en decimal) som ett utpris motsvarar, eller undefined. */
+export function beräknaPaslag(inkopspris: number, utpris: number) {
+  if (!(inkopspris > 0) || !(utpris > 0)) return undefined;
+  return Math.round((utpris / inkopspris - 1) * 1000) / 10;
+}
 
 /** "2,5 m", "3 st" – enhet saknas = styck. */
 export function formateraAntal(antal: number, enhet?: string) {
@@ -159,6 +174,12 @@ export function beräknaSummering(job: JobInput) {
     (sum, a) => sum + a.pris * a.antal,
     0,
   );
+  // Bara för egen uppföljning – inköpspriset syns aldrig för kunden
+  const artiklarInkopSum = job.artiklar.reduce(
+    (sum, a) => sum + (a.inkopspris || 0) * a.antal,
+    0,
+  );
+  const artiklarMarginal = artiklarSum - artiklarInkopSum;
   const ovrigaSum = (job.ovrigaKostnader ?? []).reduce(
     (sum, k) => sum + k.pris,
     0,
@@ -175,6 +196,8 @@ export function beräknaSummering(job: JobInput) {
 
   return {
     artiklarSum,
+    artiklarInkopSum,
+    artiklarMarginal,
     ovrigaSum,
     totalTimmar,
     totalStracka,

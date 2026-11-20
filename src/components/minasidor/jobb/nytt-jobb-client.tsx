@@ -9,9 +9,10 @@ import type { JobInput, Customer } from "@/lib/job-schema";
 
 interface Props {
   customers: Customer[];
+  materialPaslag: number;
 }
 
-export default function NyttJobbClient({ customers }: Props) {
+export default function NyttJobbClient({ customers, materialPaslag }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -36,6 +37,7 @@ export default function NyttJobbClient({ customers }: Props) {
       submitLabel="Spara jobb"
       isPending={isPending}
       customers={customers}
+      materialPaslag={materialPaslag}
     />
   );
 }

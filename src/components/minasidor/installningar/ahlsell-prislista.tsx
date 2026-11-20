@@ -257,7 +257,7 @@ function PaslagForm({ paslag }: { paslag: number }) {
     <FormSubsection
       icon={Percent}
       title="Påslag på material"
-      description="När du väljer en Ahlsell-artikel i ett jobb föreslås utpriset som inköpspris + påslag. 0 % = du fyller i utpriset själv."
+      description="Standardpåslag för nya artiklar i ett jobb. Utpriset räknas som inköpspris + påslag och kan ändras per artikel. 0 % = du fyller i utpriset själv."
     >
       <form onSubmit={spara} className="flex items-end gap-3">
         <Field label="Påslag (%)" htmlFor="material-paslag" className="w-32">

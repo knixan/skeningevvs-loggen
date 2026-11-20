@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { getCustomers } from "@/lib/job-actions";
+import { prisma } from "@/lib/prisma";
 import NyttJobbClient from "@/components/minasidor/jobb/nytt-jobb-client";
 
 export default function NyttJobbPage() {
@@ -21,12 +22,21 @@ async function NyttJobbInnehall() {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) redirect("/logga-in");
 
-  const customers = await getCustomers();
+  const [customers, company] = await Promise.all([
+    getCustomers(),
+    prisma.company.findFirst({
+      where: { ownerId: session.user.id },
+      select: { materialPaslag: true },
+    }),
+  ]);
 
   return (
     <>
       <h1 className="text-2xl font-bold mb-6">Nytt jobb</h1>
-      <NyttJobbClient customers={customers} />
+      <NyttJobbClient
+        customers={customers}
+        materialPaslag={company?.materialPaslag ?? 0}
+      />
     </>
   );
 }

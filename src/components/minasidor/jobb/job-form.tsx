@@ -34,6 +34,7 @@ import {
   Search,
   ImagePlus,
   Calculator,
+  Percent,
   X,
 } from "lucide-react";
 
@@ -41,10 +42,11 @@ import {
   jobSchema,
   type JobInput,
   beräknaSummering,
+  beräknaPaslag,
+  utprisMedPaslag,
   type Customer,
 } from "@/lib/job-schema";
 import { deleteUploadedImage } from "@/lib/job-actions";
-import { foreslagetUtpris } from "@/lib/ahlsell";
 import AhlsellSok from "./ahlsell-sok";
 import { idag } from "@/lib/datum";
 import { useUploadThing } from "@/lib/uploadthing-client";
@@ -69,6 +71,8 @@ interface Props {
   submitLabel?: string;
   isPending?: boolean;
   customers?: Customer[];
+  /** Företagets standardpåslag i procent för nya artikelrader */
+  materialPaslag?: number;
 }
 
 const tomDefaults: JobInput = {
@@ -107,10 +111,19 @@ export default function JobForm({
   submitLabel = "Spara jobb",
   isPending = false,
   customers = [],
+  materialPaslag = 0,
 }: Props) {
   const form = useForm<JobInput>({
     resolver: zodResolver(jobSchema) as Resolver<JobInput>,
-    defaultValues: { ...tomDefaults, ...defaultValues },
+    defaultValues: {
+      ...tomDefaults,
+      ...defaultValues,
+      // Påslaget sparas inte – visa det som de sparade priserna motsvarar
+      artiklar: (defaultValues?.artiklar ?? []).map((a) => ({
+        ...a,
+        paslag: beräknaPaslag(a.inkopspris ?? 0, a.pris),
+      })),
+    },
   });
 
   const {
@@ -118,8 +131,31 @@ export default function JobForm({
     handleSubmit,
     control,
     setValue,
+    getValues,
     formState: { errors },
   } = form;
+
+  // Inköpspris eller påslag ändrat → räkna om utpriset
+  function raknaUtpris(i: number) {
+    const ink = getValues(`artiklar.${i}.inkopspris`);
+    const paslag = getValues(`artiklar.${i}.paslag`);
+    if (ink > 0 && typeof paslag === "number" && Number.isFinite(paslag)) {
+      setValue(`artiklar.${i}.pris`, utprisMedPaslag(ink, paslag), {
+        shouldDirty: true,
+      });
+    }
+  }
+
+  // Utpris skrivet för hand → visa vilket påslag det motsvarar
+  function raknaPaslag(i: number) {
+    setValue(
+      `artiklar.${i}.paslag`,
+      beräknaPaslag(
+        getValues(`artiklar.${i}.inkopspris`),
+        getValues(`artiklar.${i}.pris`),
+      ) ?? NaN,
+    );
+  }
 
   const artiklar = useFieldArray({ control, name: "artiklar" });
   const resor = useFieldArray({ control, name: "resor" });
@@ -389,6 +425,7 @@ export default function JobForm({
                   pris: 0,
                   antal: 1,
                   enhet: "",
+                  paslag: materialPaslag > 0 ? materialPaslag : undefined,
                 })
               }
             >
@@ -399,157 +436,183 @@ export default function JobForm({
           <AhlsellSok
             onValj={(t, paslag) => {
               const inkopspris = t.nettoprisOre / 100;
+              const medPaslag = paslag > 0 && inkopspris > 0;
               artiklar.append({
                 namn: t.benamning,
                 artikelnr: t.artikelnr,
                 aterforsaljare: "Ahlsell",
                 inkopspris,
                 // Inget påslag inställt → utpriset fylls i för hand
-                pris:
-                  paslag > 0 && inkopspris > 0
-                    ? foreslagetUtpris(inkopspris, paslag)
-                    : 0,
+                pris: medPaslag ? utprisMedPaslag(inkopspris, paslag) : 0,
+                paslag: medPaslag ? paslag : undefined,
                 antal:
                   t.bestallningsmultipel > 1 ? t.bestallningsmultipel : 1,
                 enhet: t.enhet,
               });
             }}
           />
-          <div className="hidden sm:grid sm:grid-cols-12 gap-2 text-xs font-medium text-muted-foreground px-1">
-            <div className="col-span-2 flex items-center gap-1.5">
-              <Tag className="h-3.5 w-3.5" />
-              Artikelnamn
-            </div>
-            <div className="col-span-2 flex items-center gap-1.5">
-              <Hash className="h-3.5 w-3.5" />
-              Artikelnr
-            </div>
-            <div className="col-span-2 flex items-center gap-1.5">
-              <Store className="h-3.5 w-3.5" />
-              Återförsäljare
-            </div>
-            <div className="col-span-1 flex items-center justify-center gap-1">
-              <Layers2 className="h-3.5 w-3.5" />
-              Antal
-            </div>
-            <div className="col-span-2 flex items-center gap-1.5">
-              <Receipt className="h-3.5 w-3.5" />
-              Inköpspris
-            </div>
-            <div className="col-span-2 flex items-center gap-1.5">
-              <Receipt className="h-3.5 w-3.5" />
-              Utpris (kr)
-            </div>
-            <div className="col-span-1" />
-          </div>
-          {artiklar.fields.map((field, i) => (
-            <div key={field.id} className="grid grid-cols-12 gap-2 items-start">
-              <div className="col-span-12 sm:col-span-2 space-y-1">
-                <Label className="text-xs text-muted-foreground sm:hidden flex items-center gap-1">
-                  <Tag className="h-3 w-3" />
-                  Artikelnamn
-                </Label>
-                <Input
-                  {...register(`artiklar.${i}.namn`)}
-                  placeholder="Artikelnamn"
-                />
-                {errors.artiklar?.[i]?.namn && (
-                  <p className="text-xs text-destructive mt-1">
-                    {errors.artiklar[i]?.namn?.message}
-                  </p>
-                )}
+          {artiklar.fields.map((field, i) => {
+            const rad = live.artiklar?.[i];
+            const radSumma = (rad?.pris || 0) * (rad?.antal || 0);
+            return (
+              <div
+                key={field.id}
+                className="rounded-lg border bg-muted/20 p-3 space-y-3"
+              >
+                <div className="grid grid-cols-12 gap-2 items-start">
+                  <Field
+                    label="Artikelnamn"
+                    icon={<Tag className="h-3 w-3" />}
+                    className="col-span-10 sm:col-span-5"
+                    error={errors.artiklar?.[i]?.namn?.message}
+                  >
+                    <Input
+                      {...register(`artiklar.${i}.namn`)}
+                      placeholder="Artikelnamn"
+                    />
+                  </Field>
+                  <div className="col-span-2 sm:col-span-1 sm:order-last flex justify-end pt-5">
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => artiklar.remove(i)}
+                      aria-label="Ta bort artikel"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <Field
+                    label="Artikelnr"
+                    icon={<Hash className="h-3 w-3" />}
+                    className="col-span-6 sm:col-span-3"
+                  >
+                    <Input
+                      {...register(`artiklar.${i}.artikelnr`)}
+                      placeholder="Artikelnr"
+                    />
+                  </Field>
+                  <Field
+                    label="Återförsäljare"
+                    icon={<Store className="h-3 w-3" />}
+                    className="col-span-6 sm:col-span-3"
+                  >
+                    <Input
+                      {...register(`artiklar.${i}.aterforsaljare`)}
+                      placeholder="T.ex. Ahlsell"
+                    />
+                  </Field>
+                </div>
+
+                <div className="grid grid-cols-12 gap-2 items-start">
+                  <Field
+                    label={
+                      rad?.enhet ? `Antal (${rad.enhet.toLowerCase()})` : "Antal"
+                    }
+                    icon={<Layers2 className="h-3 w-3" />}
+                    className="col-span-4 sm:col-span-2"
+                    error={errors.artiklar?.[i]?.antal?.message}
+                  >
+                    <Input
+                      type="number"
+                      step="any"
+                      min="0"
+                      {...register(`artiklar.${i}.antal`, {
+                        valueAsNumber: true,
+                      })}
+                      placeholder="Antal"
+                    />
+                  </Field>
+                  <Field
+                    label="Inköpspris"
+                    icon={<Receipt className="h-3 w-3" />}
+                    className="col-span-4 sm:col-span-3"
+                  >
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      {...register(`artiklar.${i}.inkopspris`, {
+                        valueAsNumber: true,
+                        onChange: () => raknaUtpris(i),
+                      })}
+                      placeholder="kr"
+                    />
+                  </Field>
+                  <Field
+                    label="Påslag (%)"
+                    icon={<Percent className="h-3 w-3" />}
+                    className="col-span-4 sm:col-span-2"
+                  >
+                    <Input
+                      type="number"
+                      step="any"
+                      {...register(`artiklar.${i}.paslag`, {
+                        valueAsNumber: true,
+                        onChange: () => raknaUtpris(i),
+                      })}
+                      placeholder="%"
+                    />
+                  </Field>
+                  <Field
+                    label="Utpris"
+                    icon={<Receipt className="h-3 w-3" />}
+                    className="col-span-6 sm:col-span-3"
+                  >
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      {...register(`artiklar.${i}.pris`, {
+                        valueAsNumber: true,
+                        onChange: () => raknaPaslag(i),
+                      })}
+                      placeholder="kr"
+                    />
+                    {!(rad?.pris && rad.pris > 0) && (
+                      <p className="text-xs font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                        <TriangleAlert className="h-3 w-3" />
+                        Utpris ej ifyllt
+                      </p>
+                    )}
+                  </Field>
+                  <div className="col-span-6 sm:col-span-2 space-y-1.5 text-right">
+                    <p className="text-sm font-medium">Summa</p>
+                    <p className="h-9 flex items-center justify-end text-sm font-semibold">
+                      {sek(radSumma)}
+                    </p>
+                  </div>
+                </div>
               </div>
-              <div className="col-span-12 sm:col-span-2 space-y-1">
-                <Label className="text-xs text-muted-foreground sm:hidden flex items-center gap-1">
-                  <Hash className="h-3 w-3" />
-                  Artikelnummer
-                </Label>
-                <Input
-                  {...register(`artiklar.${i}.artikelnr`)}
-                  placeholder="Artikelnummer"
-                />
+            );
+          })}
+
+          {artiklar.fields.length > 0 && (
+            <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm space-y-1">
+              <div className="flex justify-between text-muted-foreground">
+                <span>Inköpspris totalt</span>
+                <span>{sek(summering.artiklarInkopSum)}</span>
               </div>
-              <div className="col-span-12 sm:col-span-2 space-y-1">
-                <Label className="text-xs text-muted-foreground sm:hidden flex items-center gap-1">
-                  <Store className="h-3 w-3" />
-                  Återförsäljare
-                </Label>
-                <Input
-                  {...register(`artiklar.${i}.aterforsaljare`)}
-                  placeholder="Återförsäljare"
-                />
+              <div className="flex justify-between font-semibold">
+                <span>Pris till kund (exkl. moms)</span>
+                <span>{sek(summering.artiklarSum)}</span>
               </div>
-              <div className="col-span-2 sm:col-span-1 space-y-1">
-                <Label className="text-xs text-muted-foreground sm:hidden flex items-center gap-1">
-                  <Layers2 className="h-3 w-3" />
-                  Antal
-                </Label>
-                <Input
-                  type="number"
-                  step="any"
-                  min="0"
-                  {...register(`artiklar.${i}.antal`, { valueAsNumber: true })}
-                  placeholder="Ant."
-                />
-                {live.artiklar?.[i]?.enhet && (
-                  <p className="text-xs text-muted-foreground text-center">
-                    {live.artiklar[i].enhet.toLowerCase()}
-                  </p>
-                )}
-                {errors.artiklar?.[i]?.antal && (
-                  <p className="text-xs text-destructive">
-                    {errors.artiklar[i]?.antal?.message}
-                  </p>
-                )}
-              </div>
-              <div className="col-span-4 sm:col-span-2 space-y-1">
-                <Label className="text-xs text-muted-foreground sm:hidden flex items-center gap-1">
-                  <Receipt className="h-3 w-3" />
-                  Inköpspris
-                </Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  {...register(`artiklar.${i}.inkopspris`, {
-                    valueAsNumber: true,
-                  })}
-                  placeholder="Inköpspris"
-                />
-              </div>
-              <div className="col-span-5 sm:col-span-2 space-y-1">
-                <Label className="text-xs text-muted-foreground sm:hidden flex items-center gap-1">
-                  <Receipt className="h-3 w-3" />
-                  Utpris (kr)
-                </Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  {...register(`artiklar.${i}.pris`, { valueAsNumber: true })}
-                  placeholder="Utpris kr"
-                />
-                {(live.artiklar?.[i]?.pris === 0 ||
-                  live.artiklar?.[i]?.pris === undefined) && (
-                  <p className="text-xs font-bold text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1">
-                    <TriangleAlert className="h-3 w-3" />
-                    Utpris ej ifyllt
-                  </p>
-                )}
-              </div>
-              <div className="col-span-1 flex justify-end">
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => artiklar.remove(i)}
-                  aria-label="Ta bort artikel"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
+              {summering.artiklarInkopSum > 0 && (
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Marginal</span>
+                  <span
+                    className={
+                      summering.artiklarMarginal < 0
+                        ? "text-destructive font-medium"
+                        : ""
+                    }
+                  >
+                    {sek(summering.artiklarMarginal)}
+                  </span>
+                </div>
+              )}
             </div>
-          ))}
+          )}
         </FormSubsection>
 
         <FormSubsection

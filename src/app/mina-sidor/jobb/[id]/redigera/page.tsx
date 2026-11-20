@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { redirect, notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { getJob, getCustomers } from "@/lib/job-actions";
+import { prisma } from "@/lib/prisma";
 import EditJobClient from "@/components/minasidor/jobb/edit-job-client";
 
 export default function RedigeraJobbPage({
@@ -30,14 +31,25 @@ async function RedigeraJobbInnehall({
   if (!session?.user) redirect("/logga-in");
 
   const { id } = await params;
-  const [job, customers] = await Promise.all([getJob(id), getCustomers()]);
+  const [job, customers, company] = await Promise.all([
+    getJob(id),
+    getCustomers(),
+    prisma.company.findFirst({
+      where: { ownerId: session.user.id },
+      select: { materialPaslag: true },
+    }),
+  ]);
 
   if (!job) notFound();
 
   return (
     <>
       <h1 className="text-2xl font-bold mb-6">Redigera jobb</h1>
-      <EditJobClient job={job} customers={customers} />
+      <EditJobClient
+        job={job}
+        customers={customers}
+        materialPaslag={company?.materialPaslag ?? 0}
+      />
     </>
   );
 }

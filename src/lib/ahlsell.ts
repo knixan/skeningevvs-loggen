@@ -242,8 +242,3 @@ export function formateraAvtalsdatum(yymmdd: string): string {
   if (!/^\d{6}$/.test(yymmdd)) return "";
   return `20${yymmdd.slice(0, 2)}-${yymmdd.slice(2, 4)}-${yymmdd.slice(4, 6)}`;
 }
-
-/** Föreslaget utpris i kronor: inköpspris + påslag, avrundat till ören. */
-export function foreslagetUtpris(inkopspris: number, paslagProcent: number) {
-  return Math.round(inkopspris * (1 + paslagProcent / 100) * 100) / 100;
-}
