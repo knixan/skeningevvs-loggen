@@ -106,6 +106,19 @@ export function SekundarKnapp({
   );
 }
 
+/**
+ * Rött felmeddelande under ett fält. `data-fel` gör att formuläret kan hitta
+ * och scrolla till det första felet när sparningen stoppas.
+ */
+export function Felmeddelande({ fel }: { fel?: string }) {
+  if (!fel) return null;
+  return (
+    <p data-fel className="text-xs text-destructive">
+      {fel}
+    </p>
+  );
+}
+
 /** Etikett med ikon, fältet och ev. felmeddelande. */
 export function Field({
   label,
@@ -129,7 +142,7 @@ export function Field({
         {label}
       </Label>
       {children}
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      <Felmeddelande fel={error} />
     </div>
   );
 }
