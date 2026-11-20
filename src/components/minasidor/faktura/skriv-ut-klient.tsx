@@ -4,16 +4,13 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "sonner";
-import type { Job } from "@/lib/job-schema";
+import { formateraAntal } from "@/lib/job-schema";
 import {
-  beräknaFaktura,
-  formateraAntal,
-  formateraTal,
-  kundensNamn,
-  MOMS_PROCENT,
-  ROT_PROCENT,
-  rotBostad,
-} from "@/lib/job-schema";
+  fakturaAPris,
+  fakturaKr as kr,
+  saljarensMomsNummer,
+  type FakturaData,
+} from "@/lib/faktura";
 import { utfardaFaktura } from "@/lib/job-actions";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,63 +35,36 @@ const PdfKnapp = dynamic(() => import("./pdf-knapp").then((m) => m.PdfKnapp), {
   ),
 });
 
-type Company = {
-  name: string;
-  orgNummer: string;
-  adress: string;
-  postnummer: string;
-  ort: string;
-  telefon: string;
-  epost: string;
-  fSkatt: boolean;
-  momsNummer: string;
-  bankgiro: string;
-  plusgiro: string;
-  swish: string;
+interface Props {
+  jobId: string;
+  /** Den sparade fakturan, eller en förhandsgranskning av dagens data */
+  faktura: FakturaData;
+  /** false = förhandsgranskning, fakturan är inte sparad */
+  arUtfardad: boolean;
   logoUrl: string;
   nastaFakturanummer: number;
-  forfallodagar: number;
-  drojsmalsranta: number;
-  fakturatext: string;
-};
-
-interface Props {
-  job: Job;
-  company: Company;
-  /** null = fakturan är inte utfärdad – sidan visar en förhandsgranskning */
-  fakturanummer: number | null;
 }
 
-export default function SkrivUtKlient({ job, company, fakturanummer }: Props) {
+export default function SkrivUtKlient({
+  jobId,
+  faktura,
+  arUtfardad,
+  logoUrl,
+  nastaFakturanummer,
+}: Props) {
   const router = useRouter();
   const [utfardar, startUtfarda] = useTransition();
-  const arUtfardad = fakturanummer != null;
 
-  const today = new Date().toLocaleDateString("sv-SE");
-  const forfalloDate = new Date();
-  forfalloDate.setDate(forfalloDate.getDate() + (company.forfallodagar || 30));
-  const forfalloStr = forfalloDate.toLocaleDateString("sv-SE");
-
-  const arFastPris = job.fastPris !== undefined && job.fastPris !== null;
-  const {
-    summary,
-    exklMoms,
-    moms,
-    arbetskostnad,
-    rotUnderlag,
-    rotAvdrag,
-    attBetala,
-  } = beräknaFaktura(job);
-
-  const kund = job.customer;
-  const kundNamn = kundensNamn(kund) || "Okänd kund";
-  const kundAdress = kund?.adress ?? "";
+  const { saljare, kund, summa, satser } = faktura;
+  // Jobb som fick ett nummer innan fakturor sparades: numret finns, men
+  // fakturan är inte låst än.
+  const harNummerUtanSparadFaktura =
+    !arUtfardad && faktura.fakturanummer != null;
   const kundPostOrt = [kund?.postnummer, kund?.ort].filter(Boolean).join(" ");
-  const bostad = rotBostad(kund);
 
   function utfarda() {
     startUtfarda(async () => {
-      const result = await utfardaFaktura(job.id);
+      const result = await utfardaFaktura(jobId);
       if (result.ok) {
         toast.success(`Faktura ${result.nummer} utfärdad`);
         router.refresh();
@@ -103,6 +73,36 @@ export default function SkrivUtKlient({ job, company, fakturanummer }: Props) {
       }
     });
   }
+
+  const foretagsDetaljer = (
+    <div className="company-details">
+      {saljare.orgNummer && (
+        <span>
+          Org.nr {saljare.orgNummer}
+          <br />
+        </span>
+      )}
+      {saljare.adress && (
+        <span>
+          {saljare.adress}
+          <br />
+        </span>
+      )}
+      {(saljare.postnummer || saljare.ort) && (
+        <span>
+          {saljare.postnummer} {saljare.ort}
+          <br />
+        </span>
+      )}
+      {saljare.telefon && (
+        <span>
+          {saljare.telefon}
+          <br />
+        </span>
+      )}
+      {saljare.epost && <span>{saljare.epost}</span>}
+    </div>
+  );
 
   return (
     <>
@@ -174,11 +174,7 @@ export default function SkrivUtKlient({ job, company, fakturanummer }: Props) {
               <Printer className="h-4 w-4 mr-2" />
               Skriv ut
             </Button>
-            <PdfKnapp
-              job={job}
-              company={company}
-              fakturanummer={fakturanummer}
-            />
+            <PdfKnapp faktura={faktura} logoUrl={logoUrl} />
           </>
         ) : (
           <>
@@ -186,23 +182,44 @@ export default function SkrivUtKlient({ job, company, fakturanummer }: Props) {
               <AlertDialogTrigger asChild>
                 <Button size="sm" disabled={utfardar}>
                   <FileCheck className="h-4 w-4 mr-2" />
-                  {utfardar ? "Utfärdar..." : "Utfärda faktura"}
+                  {utfardar
+                    ? "Sparar..."
+                    : harNummerUtanSparadFaktura
+                      ? `Spara faktura ${faktura.fakturanummer}`
+                      : "Utfärda faktura"}
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Utfärda faktura?</AlertDialogTitle>
+                  <AlertDialogTitle>
+                    {harNummerUtanSparadFaktura
+                      ? `Spara faktura ${faktura.fakturanummer}?`
+                      : "Utfärda faktura?"}
+                  </AlertDialogTitle>
                   <AlertDialogDescription>
-                    Fakturan får nästa lediga fakturanummer (just nu{" "}
-                    {company.nastaFakturanummer}) och jobbet markeras som
-                    fakturerat. Ett utfärdat fakturanummer kan inte ändras
-                    eller återanvändas.
+                    {harNummerUtanSparadFaktura ? (
+                      <>
+                        Fakturan sparas som den ser ut nu, med dagens datum
+                        som fakturadatum. Därefter ändras den inte, även om
+                        jobbet, kunden eller företagsuppgifterna ändras.
+                      </>
+                    ) : (
+                      <>
+                        Fakturan får nästa lediga fakturanummer (just nu{" "}
+                        {nastaFakturanummer}) och jobbet markeras som
+                        fakturerat. Fakturan sparas som den ser ut nu och
+                        ändras inte efteråt. Ett utfärdat fakturanummer kan
+                        inte ändras eller återanvändas.
+                      </>
+                    )}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Avbryt</AlertDialogCancel>
                   <AlertDialogAction onClick={utfarda}>
-                    Utfärda faktura
+                    {harNummerUtanSparadFaktura
+                      ? "Spara faktura"
+                      : "Utfärda faktura"}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -214,7 +231,9 @@ export default function SkrivUtKlient({ job, company, fakturanummer }: Props) {
                 color: "#6b7280",
               }}
             >
-              Förhandsgranskning – fakturan har inget fakturanummer än.
+              {harNummerUtanSparadFaktura
+                ? "Fakturan är inte sparad – den ändras om jobbet ändras."
+                : "Förhandsgranskning – fakturan har inget fakturanummer än."}
             </p>
           </>
         )}
@@ -224,72 +243,20 @@ export default function SkrivUtKlient({ job, company, fakturanummer }: Props) {
         {/* Header */}
         <div className="header">
           <div className="logo-block">
-            {company.logoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={company.logoUrl} alt="Logotyp" />
-            ) : (
-              <div className="company-name">{company.name}</div>
-            )}
-            {company.logoUrl && (
-              <div>
-                <div className="company-name">{company.name}</div>
-                <div className="company-details">
-                  {company.orgNummer && (
-                    <span>
-                      Org.nr {company.orgNummer}
-                      <br />
-                    </span>
-                  )}
-                  {company.adress && (
-                    <span>
-                      {company.adress}
-                      <br />
-                    </span>
-                  )}
-                  {(company.postnummer || company.ort) && (
-                    <span>
-                      {company.postnummer} {company.ort}
-                      <br />
-                    </span>
-                  )}
-                  {company.telefon && (
-                    <span>
-                      {company.telefon}
-                      <br />
-                    </span>
-                  )}
-                  {company.epost && <span>{company.epost}</span>}
+            {logoUrl ? (
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={logoUrl} alt="Logotyp" />
+                <div>
+                  <div className="company-name">{saljare.namn}</div>
+                  {foretagsDetaljer}
                 </div>
-              </div>
-            )}
-            {!company.logoUrl && (
-              <div className="company-details">
-                {company.orgNummer && (
-                  <span>
-                    Org.nr {company.orgNummer}
-                    <br />
-                  </span>
-                )}
-                {company.adress && (
-                  <span>
-                    {company.adress}
-                    <br />
-                  </span>
-                )}
-                {(company.postnummer || company.ort) && (
-                  <span>
-                    {company.postnummer} {company.ort}
-                    <br />
-                  </span>
-                )}
-                {company.telefon && (
-                  <span>
-                    {company.telefon}
-                    <br />
-                  </span>
-                )}
-                {company.epost && <span>{company.epost}</span>}
-              </div>
+              </>
+            ) : (
+              <>
+                <div className="company-name">{saljare.namn}</div>
+                {foretagsDetaljer}
+              </>
             )}
           </div>
 
@@ -299,24 +266,24 @@ export default function SkrivUtKlient({ job, company, fakturanummer }: Props) {
               <tbody>
                 <tr>
                   <td>Fakturanummer</td>
-                  <td className="bold">{arUtfardad ? fakturanummer : "–"}</td>
+                  <td className="bold">{faktura.fakturanummer ?? "–"}</td>
                 </tr>
                 <tr>
                   <td>Fakturadatum</td>
-                  <td>{today}</td>
+                  <td>{faktura.fakturadatum}</td>
                 </tr>
                 <tr>
                   <td>Förfallodatum</td>
-                  <td>{forfalloStr}</td>
+                  <td>{faktura.forfallodatum}</td>
                 </tr>
                 <tr>
                   <td>Betalningsvillkor</td>
-                  <td>{company.forfallodagar} dagar netto</td>
+                  <td>{saljare.forfallodagar} dagar netto</td>
                 </tr>
-                {company.drojsmalsranta > 0 && (
+                {saljare.drojsmalsranta > 0 && (
                   <tr>
                     <td>Dröjsmålsränta</td>
-                    <td>{company.drojsmalsranta}%</td>
+                    <td>{saljare.drojsmalsranta}%</td>
                   </tr>
                 )}
               </tbody>
@@ -328,17 +295,17 @@ export default function SkrivUtKlient({ job, company, fakturanummer }: Props) {
         <div className="kund-block">
           <h3>Faktureras till</h3>
           <p>
-            <strong>{kundNamn}</strong>
+            <strong>{kund?.namn || "Okänd kund"}</strong>
             <br />
-            {kund?.typ === "foretag" && kund.kontaktperson && (
+            {kund?.kontaktperson && (
               <>
                 {kund.kontaktperson}
                 <br />
               </>
             )}
-            {kundAdress && (
+            {kund?.adress && (
               <>
-                {kundAdress}
+                {kund.adress}
                 <br />
               </>
             )}
@@ -361,15 +328,15 @@ export default function SkrivUtKlient({ job, company, fakturanummer }: Props) {
               Personnummer: {kund.personnummer}
             </p>
           )}
-          {job.rotAvdrag && bostad && (
+          {faktura.rotAvdrag && kund?.rotBostad && (
             <p style={{ marginTop: 4, fontSize: "9pt", color: "#555" }}>
-              ROT-avdrag · {bostad}
+              ROT-avdrag · {kund.rotBostad}
             </p>
           )}
         </div>
 
-        {/* Fakturaraderna */}
-        {!arFastPris && (
+        {/* Fakturaraderna – med fast pris finns inga */}
+        {faktura.rader.length > 0 && (
           <table className="rader">
             <thead>
               <tr>
@@ -380,72 +347,28 @@ export default function SkrivUtKlient({ job, company, fakturanummer }: Props) {
               </tr>
             </thead>
             <tbody>
-              {job.artiklar.map((a, i) => (
+              {faktura.rader.map((rad, i) => (
                 <tr key={i}>
                   <td>
-                    {a.namn}
-                    {a.artikelnr && (
+                    {rad.beskrivning}
+                    {rad.detalj && (
                       <span style={{ color: "#888", fontSize: "8.5pt" }}>
                         {" "}
-                        · {a.artikelnr}
-                      </span>
-                    )}
-                    {a.aterforsaljare && (
-                      <span style={{ color: "#888", fontSize: "8.5pt" }}>
-                        {" "}
-                        · {a.aterforsaljare}
+                        · {rad.detalj}
                       </span>
                     )}
                   </td>
-                  <td className="right">{formateraAntal(a.antal, a.enhet)}</td>
-                  <td className="right">{a.pris.toLocaleString("sv-SE")} kr</td>
-                  <td className="right bold">
-                    {(a.pris * a.antal).toLocaleString("sv-SE")} kr
+                  <td className="right">
+                    {formateraAntal(rad.antal, rad.enhet)}
                   </td>
+                  <td className="right">{fakturaAPris(rad)}</td>
+                  <td className="right bold">{kr(rad.belopp)}</td>
                 </tr>
               ))}
-              {(job.ovrigaKostnader ?? []).map((k, i) => (
-                <tr key={`ok-${i}`}>
-                  <td>{k.beskrivning}</td>
-                  <td className="right">1 st</td>
-                  <td className="right">{k.pris.toLocaleString("sv-SE")} kr</td>
-                  <td className="right bold">
-                    {k.pris.toLocaleString("sv-SE")} kr
-                  </td>
-                </tr>
-              ))}
-              {summary.totalTimmar > 0 && summary.timpris > 0 && (
-                <tr>
-                  <td>Arbetstid</td>
-                  <td className="right">
-                    {formateraTal(summary.totalTimmar)} h
-                  </td>
-                  <td className="right">
-                    {summary.timpris.toLocaleString("sv-SE")} kr/h
-                  </td>
-                  <td className="right bold">
-                    {summary.arbetstidSum.toLocaleString("sv-SE")} kr
-                  </td>
-                </tr>
-              )}
-              {summary.totalStracka > 0 && summary.milersattning > 0 && (
-                <tr>
-                  <td>Resor / milersättning</td>
-                  <td className="right">
-                    {formateraTal(summary.totalStracka)} km
-                  </td>
-                  <td className="right">
-                    {summary.milersattning.toLocaleString("sv-SE")} kr/km
-                  </td>
-                  <td className="right bold">
-                    {summary.resorSum.toLocaleString("sv-SE")} kr
-                  </td>
-                </tr>
-              )}
             </tbody>
           </table>
         )}
-        {job.utfortArbete && (
+        {faktura.utfortArbete && (
           <p
             style={{
               marginBottom: 20,
@@ -453,7 +376,7 @@ export default function SkrivUtKlient({ job, company, fakturanummer }: Props) {
               fontSize: "9pt",
             }}
           >
-            <strong>Utfört arbete:</strong> {job.utfortArbete}
+            <strong>Utfört arbete:</strong> {faktura.utfortArbete}
           </p>
         )}
 
@@ -463,62 +386,41 @@ export default function SkrivUtKlient({ job, company, fakturanummer }: Props) {
             <tbody>
               <tr>
                 <td>
-                  {job.fastPris !== undefined && job.fastPris !== null
+                  {faktura.fastPris
                     ? "Fast pris exkl. moms"
                     : "Summa exkl. moms"}
                 </td>
-                <td>
-                  {exklMoms.toLocaleString("sv-SE", {
-                    minimumFractionDigits: 2,
-                  })}{" "}
-                  kr
-                </td>
+                <td>{kr(summa.exklMoms)}</td>
               </tr>
               {/* Arbetsdelen av ett fast pris – ROT räknas bara på den */}
-              {arFastPris && job.fastPrisArbete != null && (
+              {faktura.visaArbetskostnad && (
                 <tr className="moms-rad">
                   <td>varav arbetskostnad exkl. moms</td>
-                  <td>
-                    {arbetskostnad.toLocaleString("sv-SE", {
-                      minimumFractionDigits: 2,
-                    })}{" "}
-                    kr
-                  </td>
+                  <td>{kr(summa.arbetskostnad)}</td>
                 </tr>
               )}
               <tr className="moms-rad">
-                <td>Moms {MOMS_PROCENT}%</td>
-                <td>
-                  {moms.toLocaleString("sv-SE", { minimumFractionDigits: 2 })}{" "}
-                  kr
-                </td>
+                <td>Moms {satser.momsProcent}%</td>
+                <td>{kr(summa.moms)}</td>
               </tr>
-              {rotAvdrag > 0 && (
+              {summa.rotAvdrag > 0 && (
                 <tr className="moms-rad">
                   <td>
-                    ROT-avdrag {ROT_PROCENT}% (av{" "}
-                    {rotUnderlag.toLocaleString("sv-SE", {
-                      minimumFractionDigits: 2,
-                    })}{" "}
-                    kr arbete inkl. moms)*
+                    ROT-avdrag {satser.rotProcent}% (av {kr(summa.rotUnderlag)}{" "}
+                    arbete inkl. moms)*
                   </td>
-                  <td style={{ color: "#dc2626" }}>
-                    −
-                    {rotAvdrag.toLocaleString("sv-SE", {
-                      minimumFractionDigits: 2,
-                    })}{" "}
-                    kr
-                  </td>
+                  <td style={{ color: "#dc2626" }}>−{kr(summa.rotAvdrag)}</td>
+                </tr>
+              )}
+              {summa.oresutjamning !== 0 && (
+                <tr className="moms-rad">
+                  <td>Öresutjämning</td>
+                  <td>{kr(summa.oresutjamning)}</td>
                 </tr>
               )}
               <tr className="total-rad">
                 <td>Att betala</td>
-                <td>
-                  {attBetala.toLocaleString("sv-SE", {
-                    minimumFractionDigits: 2,
-                  })}{" "}
-                  kr
-                </td>
+                <td>{kr(summa.attBetala)}</td>
               </tr>
             </tbody>
           </table>
@@ -529,41 +431,40 @@ export default function SkrivUtKlient({ job, company, fakturanummer }: Props) {
           <div className="betalning-block">
             <h4>Betalningsuppgifter</h4>
             <p>
-              {company.bankgiro && (
+              {saljare.bankgiro && (
                 <>
-                  Bankgiro: {company.bankgiro}
+                  Bankgiro: {saljare.bankgiro}
                   <br />
                 </>
               )}
-              {company.plusgiro && (
+              {saljare.plusgiro && (
                 <>
-                  Plusgiro: {company.plusgiro}
+                  Plusgiro: {saljare.plusgiro}
                   <br />
                 </>
               )}
-              {company.swish && <>Swish: {company.swish}</>}
+              {saljare.swish && <>Swish: {saljare.swish}</>}
             </p>
           </div>
           <div className="betalning-block">
             <h4>Meddelande / OCR</h4>
-            <p>{arUtfardad ? fakturanummer : "–"}</p>
+            <p>{faktura.fakturanummer ?? "–"}</p>
           </div>
         </div>
 
         {/* Fakturatext och F-skatt */}
-        {company.fakturatext && (
-          <p className="fakturatext">{company.fakturatext}</p>
+        {saljare.fakturatext && (
+          <p className="fakturatext">{saljare.fakturatext}</p>
         )}
-        {company.fSkatt && (
+        {saljare.fSkatt && (
           <p className="fskatt">
-            ✓ Godkänd för F-skatt · Momsreg.nr:{" "}
-            {company.momsNummer || `SE${company.orgNummer?.replace("-", "")}01`}
+            ✓ Godkänd för F-skatt · Momsreg.nr: {saljarensMomsNummer(saljare)}
           </p>
         )}
-        {job.rotAvdrag && (
+        {faktura.rotAvdrag && (
           <p className="fskatt" style={{ marginTop: 4 }}>
-            * ROT-avdrag: Avser {ROT_PROCENT}% av arbetskostnad inkl. moms.
-            Hantverkaren ansöker om utbetalning hos Skatteverket.
+            * ROT-avdrag: Avser {satser.rotProcent}% av arbetskostnad inkl.
+            moms. Hantverkaren ansöker om utbetalning hos Skatteverket.
           </p>
         )}
       </div>

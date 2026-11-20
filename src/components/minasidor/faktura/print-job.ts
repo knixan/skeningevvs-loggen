@@ -4,6 +4,7 @@ import {
   formateraKr,
   formateraTal,
   kundensNamn,
+  radBelopp,
   type Job,
 } from "@/lib/job-schema";
 import { escapeHtml as e } from "@/lib/utils";
@@ -74,7 +75,7 @@ export function printJob(
             <td class="muted">${e(a.artikelnr ?? "")}</td>
             <td class="right">${e(formateraAntal(a.antal, a.enhet))}</td>
             <td class="right">${formateraKr(a.pris)} / ${e((a.enhet ?? "").trim().toLowerCase() || "st")}</td>
-            <td class="right bold">${formateraKr(a.pris * a.antal)}</td>
+            <td class="right bold">${formateraKr(radBelopp(a.pris, a.antal))}</td>
           </tr>
         `,
           )

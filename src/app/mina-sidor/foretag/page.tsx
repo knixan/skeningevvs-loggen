@@ -2,7 +2,8 @@ import { Suspense } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { getCompanySettings } from "@/lib/job-actions";
+import { companySchema } from "@/lib/job-schema";
+import { getCompanySettings } from "@/lib/queries";
 import CompanySettingsForm from "@/components/minasidor/foretag/company-settings-form";
 
 export default function ForetagsuppgifterPage() {
@@ -21,7 +22,14 @@ async function ForetagInnehall() {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) redirect("/logga-in");
 
-  const company = await getCompanySettings();
+  // Företaget skapas först när något sparas – tills dess visas ett tomt
+  // formulär med standardvärdena.
+  const company = (await getCompanySettings()) ?? {
+    ...companySchema.parse({ name: "Mitt företag" }),
+    id: "",
+    logoUrl: "",
+    logoKey: "",
+  };
 
   return (
     <>
@@ -32,7 +40,7 @@ async function ForetagInnehall() {
           PDF-underlag.
         </p>
       </div>
-      {company && <CompanySettingsForm company={company} />}
+      <CompanySettingsForm company={company} />
     </>
   );
 }

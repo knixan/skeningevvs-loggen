@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { getCustomers } from "@/lib/job-actions";
+import { getCustomers } from "@/lib/queries";
 import { prisma } from "@/lib/prisma";
 import NyttJobbClient from "@/components/minasidor/jobb/nytt-jobb-client";
 

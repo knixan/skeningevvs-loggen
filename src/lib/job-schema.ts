@@ -304,20 +304,50 @@ export const companySchema = z.object({
 
 export type CompanyInput = z.infer<typeof companySchema>;
 
+// ============================================================
+// Beräkningar
+// ============================================================
+//
+// Alla belopp avrundas till ören där de räknas fram, så att det som står på
+// fakturan alltid går jämnt upp: raderna summerar till "exkl. moms", och
+// exkl. moms + moms − ROT + öresutjämning är exakt "att betala".
+
+/**
+ * Avrundar ett belopp till hela ören, halva uppåt (bort från noll).
+ *
+ * Flyttal kan inte lagra alla decimaltal exakt: 1,005 är egentligen
+ * 1,00499999… och 1,005 * 100 blir 100,49999… som Math.round avrundar nedåt.
+ * toPrecision(12) tar bort det bruset innan avrundningen.
+ */
+export function avrundaTillOre(n: number): number {
+  const ore = Math.round(Number((Math.abs(n) * 100).toPrecision(12)));
+  if (ore === 0) return 0;
+  return n < 0 ? -ore / 100 : ore / 100;
+}
+
+/** Kronor → ören som heltal, t.ex. 1234.5 → 123450. */
+export function kronorTillOre(kr: number): number {
+  return Math.round(avrundaTillOre(kr) * 100);
+}
+
+/** Radbelopp i kronor: à-pris × antal, avrundat till ören. */
+export function radBelopp(pris: number, antal: number): number {
+  return avrundaTillOre(pris * antal);
+}
+
+function summa(belopp: number[]): number {
+  return avrundaTillOre(belopp.reduce((sum, b) => sum + b, 0));
+}
+
 export function beräknaSummering(job: JobInput) {
-  const artiklarSum = job.artiklar.reduce(
-    (sum, a) => sum + a.pris * a.antal,
-    0,
-  );
+  const artiklarSum = summa(job.artiklar.map((a) => radBelopp(a.pris, a.antal)));
   // Bara för egen uppföljning – inköpspriset syns aldrig för kunden
-  const artiklarInkopSum = job.artiklar.reduce(
-    (sum, a) => sum + (a.inkopspris || 0) * a.antal,
-    0,
+  const artiklarInkopSum = summa(
+    job.artiklar.map((a) => radBelopp(a.inkopspris || 0, a.antal)),
   );
-  const artiklarMarginal = artiklarSum - artiklarInkopSum;
-  const ovrigaSum = (job.ovrigaKostnader ?? []).reduce(
-    (sum, k) => sum + k.pris,
-    0,
+  const artiklarMarginal = avrundaTillOre(artiklarSum - artiklarInkopSum);
+  const ovrigaSum = summa(
+    (job.ovrigaKostnader ?? []).map((k) => avrundaTillOre(k.pris)),
   );
   const totalTimmar = job.arbetstider.reduce((sum, a) => sum + a.timmar, 0);
   const totalStracka = job.resor.reduce((sum, r) => sum + r.stracka, 0);
@@ -325,9 +355,9 @@ export function beräknaSummering(job: JobInput) {
 
   const timpris = job.timpris ?? 0;
   const milersattning = job.milersattning ?? 0;
-  const arbetstidSum = totalTimmar * timpris;
-  const resorSum = totalStracka * milersattning;
-  const totalExklMoms = artiklarSum + ovrigaSum + arbetstidSum + resorSum;
+  const arbetstidSum = radBelopp(timpris, totalTimmar);
+  const resorSum = radBelopp(milersattning, totalStracka);
+  const totalExklMoms = summa([artiklarSum, ovrigaSum, arbetstidSum, resorSum]);
 
   return {
     artiklarSum,
@@ -350,34 +380,110 @@ export const MOMS_PROCENT = 25;
 /** ROT-avdrag i procent av arbetskostnaden inkl. moms (30 % år 2026). */
 export const ROT_PROCENT = 30;
 
-// Delad fakturaberäkning (moms, ROT-avdrag, att betala) så att PDF:en och
-// utskriftsvyn alltid visar samma summor för samma jobb.
+/** En rad på fakturan, färdigräknad – vyerna ritar bara upp den. */
+export type FakturaRad = {
+  /** Styr bara visningen, t.ex. att à-priset för arbetstid visas per timme. */
+  typ: "artikel" | "kostnad" | "arbete" | "resa";
+  beskrivning: string;
+  /** Artikelnummer och återförsäljare, tom för andra rader. */
+  detalj: string;
+  antal: number;
+  /** "st", "m", "h", "km" … */
+  enhet: string;
+  aPris: number;
+  belopp: number;
+};
+
+function fakturaRader(
+  job: JobInput,
+  summary: ReturnType<typeof beräknaSummering>,
+): FakturaRad[] {
+  const rader: FakturaRad[] = [
+    ...job.artiklar.map((a) => ({
+      typ: "artikel" as const,
+      beskrivning: a.namn,
+      detalj: [a.artikelnr, a.aterforsaljare].filter(Boolean).join(" · "),
+      antal: a.antal,
+      enhet: (a.enhet ?? "").trim().toLowerCase() || "st",
+      aPris: a.pris,
+      belopp: radBelopp(a.pris, a.antal),
+    })),
+    ...(job.ovrigaKostnader ?? []).map((k) => ({
+      typ: "kostnad" as const,
+      beskrivning: k.beskrivning,
+      detalj: "",
+      antal: 1,
+      enhet: "st",
+      aPris: k.pris,
+      belopp: avrundaTillOre(k.pris),
+    })),
+  ];
+  if (summary.totalTimmar > 0 && summary.timpris > 0) {
+    rader.push({
+      typ: "arbete",
+      beskrivning: "Arbetstid",
+      detalj: "",
+      antal: summary.totalTimmar,
+      enhet: "h",
+      aPris: summary.timpris,
+      belopp: summary.arbetstidSum,
+    });
+  }
+  if (summary.totalStracka > 0 && summary.milersattning > 0) {
+    rader.push({
+      typ: "resa",
+      beskrivning: "Resor / milersättning",
+      detalj: "",
+      antal: summary.totalStracka,
+      enhet: "km",
+      aPris: summary.milersattning,
+      belopp: summary.resorSum,
+    });
+  }
+  return rader;
+}
+
+// Delad fakturaberäkning (rader, moms, ROT-avdrag, att betala) så att PDF:en,
+// utskriftsvyn och formuläret alltid visar samma summor för samma jobb.
 export function beräknaFaktura(job: JobInput) {
   const summary = beräknaSummering(job);
+  const arFastPris = job.fastPris != null;
 
-  const exklMoms = job.fastPris ?? summary.totalExklMoms;
-  const moms = exklMoms * (MOMS_PROCENT / 100);
-  const totalInklMoms = exklMoms + moms;
+  // Med fast pris står inga rader på fakturan – bara det fasta priset.
+  const rader = arFastPris ? [] : fakturaRader(job, summary);
+  const exklMoms = arFastPris
+    ? avrundaTillOre(job.fastPris ?? 0)
+    : summary.totalExklMoms;
+  const moms = avrundaTillOre(exklMoms * (MOMS_PROCENT / 100));
+  const totalInklMoms = avrundaTillOre(exklMoms + moms);
 
   // ROT räknas bara på arbete som står på fakturan: den löpande arbetstiden,
   // eller – med fast pris – den del av priset som angetts som arbete.
   // Loggade timmar på ett fast pris-jobb står inte på fakturan och räknas inte.
-  const arbetskostnad =
-    job.fastPris != null ? (job.fastPrisArbete ?? 0) : summary.arbetstidSum;
+  const arbetskostnad = arFastPris
+    ? avrundaTillOre(job.fastPrisArbete ?? 0)
+    : summary.arbetstidSum;
   const rotUnderlag = job.rotAvdrag
-    ? arbetskostnad * (1 + MOMS_PROCENT / 100)
+    ? avrundaTillOre(arbetskostnad * (1 + MOMS_PROCENT / 100))
     : 0;
-  const rotAvdrag = rotUnderlag * (ROT_PROCENT / 100);
-  const attBetala = totalInklMoms - rotAvdrag;
+  const rotAvdrag = avrundaTillOre(rotUnderlag * (ROT_PROCENT / 100));
+
+  // Att betala avrundas till hela kronor. Skillnaden står som öresutjämning,
+  // så att raderna i summeringen går jämnt upp.
+  const attBetalaExakt = avrundaTillOre(totalInklMoms - rotAvdrag);
+  const attBetala = Math.round(attBetalaExakt);
+  const oresutjamning = avrundaTillOre(attBetala - attBetalaExakt);
 
   return {
     summary,
+    rader,
     exklMoms,
     moms,
     totalInklMoms,
     arbetskostnad,
     rotUnderlag,
     rotAvdrag,
+    oresutjamning,
     attBetala,
   };
 }

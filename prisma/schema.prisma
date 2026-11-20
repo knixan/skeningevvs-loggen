@@ -121,6 +121,7 @@ model Company {
   owner           User             @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   jobs            Job[]
   customers       Customer[]
+  fakturor        Faktura[]
   ahlsellArtiklar AhlsellArtikel[]
 
   @@map("company")
@@ -154,8 +155,9 @@ model Customer {
   lagenhetsnummer      String @default("")
   bostadsrattsforening String @default("")
 
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  jobs    Job[]
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  jobs     Job[]
+  fakturor Faktura[]
 
   @@index([companyId])
   @@map("customer")
@@ -177,7 +179,7 @@ model Job {
   foljUpp      Boolean   @default(false)
   foljUppDatum DateTime? @db.Date
 
-  // Fakturering
+  // Fakturering. Själva fakturan sparas i `faktura` när den utfärdas.
   fakturanummer Int?
 
   // Prissättning
@@ -206,12 +208,50 @@ model Job {
   arbetspass      WorkSession[]
   images          JobImage[]
   ovrigaKostnader OvrigKostnad[]
+  faktura         Faktura?
 
+  // Ett fakturanummer kan aldrig delas ut två gånger (PostgreSQL tillåter
+  // flera NULL, alltså flera jobb utan faktura)
+  @@unique([companyId, fakturanummer])
   @@index([companyId])
   @@index([customerId])
   @@index([companyId, fakturerat])
   @@index([companyId, betalt])
   @@map("job")
+}
+
+// En utfärdad faktura, sparad precis som den såg ut när den utfärdades.
+// Utskrift och PDF läser härifrån, så ändringar i jobbet, kunden eller
+// företaget efteråt påverkar inte fakturan (bokföringslagen). Skrivs bara av
+// utfardaFaktura och ändras aldrig.
+model Faktura {
+  id            String   @id @default(cuid())
+  companyId     String
+  // Tas jobbet eller kunden bort finns fakturan kvar (SetNull)
+  jobId         String?  @unique
+  customerId    String?
+  fakturanummer Int
+  fakturadatum  DateTime @db.Date
+  forfallodatum DateTime @db.Date
+  utfardad      DateTime @default(now())
+
+  // Summorna i ören (heltal), så att statistik kan summera exakt i databasen
+  exklMomsOre  Int
+  momsOre      Int
+  rotAvdragOre Int
+  attBetalaOre Int
+
+  // Allt som står på fakturan – FakturaData i lib/faktura.ts
+  innehall Json
+
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  job      Job?      @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, fakturanummer])
+  @@index([companyId, fakturadatum])
+  @@index([customerId])
+  @@map("faktura")
 }
 
 model Article {

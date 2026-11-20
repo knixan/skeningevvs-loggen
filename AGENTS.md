@@ -22,38 +22,45 @@ En vanlig Next.js-app (inte monorepo), npm som pakethanterare.
 - **`src/components/minasidor/`** – UI med affärslogik, uppdelat på `jobb/`, `kunder/`, `faktura/`, `foretag/`, `oversikt/`, `installningar/`.
 - **`src/components/ui/`** – shadcn/ui. Lägg till nya komponenter med `npx shadcn add <komponent>`, skriv dem inte för hand.
 - **`src/lib/`**
-  - `job-schema.ts` – zod-scheman (kund, jobb, företag), typer och **alla beräkningar** (`beräknaSummering`, `beräknaFaktura`).
-  - `job-actions.ts` – server actions (`"use server"`) för jobb, kunder, företag, konto, fakturanummer och bilder.
+  - `job-schema.ts` – zod-scheman (kund, jobb, företag), typer och **alla beräkningar** (`beräknaSummering`, `beräknaFaktura`, `radBelopp`, `avrundaTillOre`).
+  - `faktura.ts` – `FakturaData` (allt som står på en faktura, färdigräknat) och `skapaFakturaData`. Samma data används för förhandsgranskning och sparad faktura.
+  - `job-actions.ts` – server actions (`"use server"`) för jobb, kunder, företag, konto, faktura och bilder. Bara skrivningar, plus `laddaFlerJobb` ("Ladda fler" i jobblistan).
+  - `queries.ts` – läsningar för serverkomponenter (`import "server-only"`, inga endpoints).
+  - `server-hjalp.ts` – `requireCompany`/`requireExistingCompany`/`requireSession`, `inloggatForetag` och `medFelhantering`. Delas av actions och läsningar.
   - `auth.ts` / `auth-client.ts` – better-auth. `env.ts` – kräver alla miljövariabler vid start.
   - `prisma.ts` – Prisma-klient med `@prisma/adapter-pg`.
   - `uploadthing.ts` / `uploadthing-client.ts` – filrouter (`jobbBilder`, `companyLogo`) och klient.
 - **`src/proxy.ts`** – Next 16:s ersättare för middleware. Måste ligga i `src/`. Kollar bara att sessionscookien finns – den riktiga behörighetskontrollen görs alltid på servern.
-- **`prisma/schema.prisma`** – auth-tabeller (User/Session/Account/Verification) + Company, Customer, Job och jobbets underrader (Article, Trip, WorkSession, JobImage, OvrigKostnad).
+- **`prisma/schema.prisma`** – auth-tabeller (User/Session/Account/Verification) + Company, Customer, Job, jobbets underrader (Article, Trip, WorkSession, JobImage, OvrigKostnad) och Faktura (sparade fakturor).
 
 ## Domänregler (påverkar pengar och säkerhet)
 
 - **Ett konto, för alltid.** `databaseHooks.user.create.before` i `lib/auth.ts` stoppar fler än ett konto. Ta aldrig bort eller kringgå den spärren.
-- **Ett företag per användare** (`Company.ownerId` är unikt), skapas av `getOrCreateCompany`. All affärsdata hänger på `companyId`.
-- **Alla belopp räknas i `lib/job-schema.ts`:** `beräknaSummering` (delsummor) och `beräknaFaktura` (moms, ROT på arbetskostnad inkl. moms, att betala). Satserna står i `MOMS_PROCENT` och `ROT_PROCENT` – skriv aldrig "25 %" eller "30 %" för hand i en vy. PDF (`faktura-pdf.tsx`) och utskriftsvy (`skriv-ut-klient.tsx`) ritar bara upp resultatet – räkna aldrig belopp i en komponent och duplicera aldrig formeln.
+- **Ett företag per användare** (`Company.ownerId` är unikt), skapas av `requireCompany` vid första skrivningen. All affärsdata hänger på `companyId`.
+- **Alla belopp räknas i `lib/job-schema.ts`:** `beräknaSummering` (delsummor) och `beräknaFaktura` (fakturarader, moms, ROT på arbetskostnad inkl. moms, öresutjämning, att betala). Satserna står i `MOMS_PROCENT` och `ROT_PROCENT` – skriv aldrig "25 %" eller "30 %" för hand i en vy. PDF (`faktura-pdf.tsx`) och utskriftsvy (`skriv-ut-klient.tsx`) ritar bara upp `FakturaData` – räkna aldrig belopp i en komponent och duplicera aldrig formeln. Ett radbelopp är `radBelopp(pris, antal)`, aldrig `pris * antal`.
+- **Avrundning:** belopp avrundas till ören där de räknas fram (`avrundaTillOre`), så att raderna summerar exakt. Att betala avrundas till hela kronor, och skillnaden står som "Öresutjämning". I databasen lagras belopp fortfarande som `Float` – utom i `faktura`, där summorna är heltal i ören.
 - **Fast pris** (`fastPris`) ersätter löpande räkning i exkl. moms. Tappa aldrig bort fältet när ett jobb redigeras – inte heller `fastPrisArbete`.
 - **ROT** räknas bara på arbete som står på fakturan: löpande arbetstid, eller med fast pris `fastPrisArbete` (krävs då, `refine` i `jobSchema`). ROT gäller bara privatpersoner – `createJob`/`updateJob` stoppar ROT för företagskund.
 - **Status:** ett jobb kan inte vara `betalt` utan att vara `fakturerat` (`refine` i `jobSchema`).
 - **Fakturanummer:**
   - delas ut av `utfardaFaktura` (knappen "Utfärda faktura" på fakturasidan) i en transaktion med `FOR UPDATE`-lås, som också sätter `fakturerat`. Ett jobb som redan har ett nummer behåller det.
   - Fakturasidan visar en förhandsgranskning utan nummer tills fakturan utfärdas. Att öppna sidan får aldrig dela ut ett nummer.
-  - `nastaFakturanummer` får aldrig sättas till ett nummer som redan är utfärdat (kontrolleras i `updateCompanySettings`).
+  - `nastaFakturanummer` får aldrig sättas till ett nummer som redan är utfärdat (kontrolleras i `updateCompanySettings`, mot både jobb och sparade fakturor).
   - Ändra aldrig utdelningen till "läs, räkna +1, skriv" i separata steg.
+  - Databasen har unikt index på `[companyId, fakturanummer]`, både på `job` och `faktura`.
+- **Utfärdad faktura ändras aldrig** (bokföringslagen). `utfardaFaktura` sparar fakturan som en ögonblicksbild (`faktura.innehall` = `FakturaData`, med fakturadatum och summor i ören) i samma transaktion som numret delas ut. Utskrift och PDF läser sedan bara den sparade – ändringar i jobb, kund, företag eller satser påverkar den inte. Bara logotypen hämtas från företaget. Tas jobbet bort finns fakturan kvar (`onDelete: SetNull`). Ändra inte formen på `FakturaData` för gamla fakturor – lägg bara till fält.
+- **Fakturadatum** är dagens datum i Sverige (`idagISverige()` i `lib/datum.ts`) – servern går i UTC.
 - **Server actions** (`"use server"`) ska alltid:
   1. kräva inloggning (`requireCompany` / `requireExistingCompany` / `requireSession`),
   2. validera indata med zod **på servern** – klientens validering räknas inte,
   3. kontrollera ägarskap (`companyId`) för varje id från klienten, även `customerId` och id:n på underrader (artiklar, resor, arbetspass, övriga kostnader),
-  4. returnera `{ ok: false, error }` med ett svenskt felmeddelande i stället för att kasta, och fånga databasfel med try/catch.
-- **En läsning får aldrig skapa eller ändra något.**
+  4. returnera `{ ok: false, error }` med ett svenskt felmeddelande i stället för att kasta, och fånga databasfel med `medFelhantering` (eller try/catch).
+- **En läsning får aldrig skapa eller ändra något.** Läsningar ligger i `queries.ts`, inte i en `"use server"`-fil.
 - **UploadThing:** radera filer från UploadThing först **efter** att databasen har sparats (se `updateJob`) – aldrig direkt vid klick. Radera bara nycklar som tillhör det här företaget. Radera aldrig "allt som inte används".
 - **Datum:** resor och arbetspass är `@db.Date` och skickas som `YYYY-MM-DD`. Standarddatum räknas i lokal tid (`idag()` i `lib/datum.ts`), inte med `toISOString()` (UTC).
 - **Personnummer** visas bara där det behövs (ROT, faktura).
 - **Kundnamn** visas alltid med `kundensNamn()` från `lib/job-schema.ts` – aldrig `foretagsnamn || namn` direkt.
-- **En kund med fakturerade jobb kan inte tas bort** (fakturan hämtar mottagaren från kunden).
+- **En kund med fakturerade jobb kan inte tas bort** (en förhandsgranskad faktura hämtar mottagaren från kunden – en utfärdad har den sparad).
 
 ### Testdata
 
@@ -66,7 +73,6 @@ En vanlig Next.js-app (inte monorepo), npm som pakethanterare.
 Följande bryter mot reglerna ovan i dagens kod. Ny kod ska följa reglerna; fixa de gamla bristerna bara när uppgiften gäller dem.
 
 - Bild-`url`/`key` från klienten valideras inte mot vad som faktiskt laddats upp.
-- Läsningar (`getJobs`, `getCustomers` m.fl.) ligger i `"use server"`-filen och blir därmed anropbara endpoints. `getCompanySettings` skapar företaget om det saknas.
 - Inga tester, ingen Prettier och ingen CI.
 
 ## Dokumentation – gissa inte

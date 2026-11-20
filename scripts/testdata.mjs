@@ -498,10 +498,21 @@ const jobb = [
 // ------------------------------------------------------------
 
 async function taBortTestdata() {
+  // Fakturor som utfärdats på testjobb i appen. Tas bort först – annars blir
+  // de kvar utan jobb och kund (onDelete: SetNull). Fakturanumren återanvänds
+  // inte: nästa fakturanummer i företagsuppgifterna ändras inte.
+  const f = await prisma.faktura.deleteMany({
+    where: {
+      OR: [
+        { jobId: { startsWith: PREFIX } },
+        { customerId: { startsWith: PREFIX } },
+      ],
+    },
+  });
   // Underrader (artiklar, resor, arbetspass …) följer med via onDelete: Cascade
   const j = await prisma.job.deleteMany({ where: { id: { startsWith: PREFIX } } });
   const k = await prisma.customer.deleteMany({ where: { id: { startsWith: PREFIX } } });
-  return { jobb: j.count, kunder: k.count };
+  return { fakturor: f.count, jobb: j.count, kunder: k.count };
 }
 
 async function laggIn() {
@@ -511,8 +522,8 @@ async function laggIn() {
   }
 
   const borttaget = await taBortTestdata();
-  if (borttaget.jobb || borttaget.kunder) {
-    console.log(`Tog bort gammal testdata: ${borttaget.kunder} kunder, ${borttaget.jobb} jobb.`);
+  if (borttaget.jobb || borttaget.kunder || borttaget.fakturor) {
+    console.log(`Tog bort gammal testdata: ${borttaget.kunder} kunder, ${borttaget.jobb} jobb, ${borttaget.fakturor} fakturor.`);
   }
 
   for (const k of kunder) {
@@ -545,7 +556,7 @@ async function laggIn() {
 try {
   if (process.argv.includes("--ta-bort")) {
     const r = await taBortTestdata();
-    console.log(`Tog bort ${r.kunder} testkunder och ${r.jobb} testjobb.`);
+    console.log(`Tog bort ${r.kunder} testkunder, ${r.jobb} testjobb och ${r.fakturor} testfakturor.`);
   } else {
     await laggIn();
   }

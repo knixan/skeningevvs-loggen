@@ -6,18 +6,13 @@ import {
   Image,
   StyleSheet,
 } from "@react-pdf/renderer";
-import type { Job, CompanyInput } from "@/lib/job-schema";
+import { formateraAntal } from "@/lib/job-schema";
 import {
-  beräknaFaktura,
-  formateraAntal,
-  formateraTal,
-  kundensNamn,
-  MOMS_PROCENT,
-  ROT_PROCENT,
-  rotBostad,
-} from "@/lib/job-schema";
-
-export type PdfCompany = CompanyInput & { logoUrl?: string };
+  fakturaAPris,
+  fakturaKr as kr,
+  saljarensMomsNummer,
+  type FakturaData,
+} from "@/lib/faktura";
 
 const S = StyleSheet.create({
   page: {
@@ -123,51 +118,23 @@ const S = StyleSheet.create({
   fskatt: { fontSize: 8, color: "#555", marginTop: 6 },
 });
 
-function kr(n: number) {
-  return (
-    n.toLocaleString("sv-SE", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }) + " kr"
-  );
-}
-
+/** Ritar bara upp fakturan – alla belopp är färdigräknade i `faktura`. */
 export function FakturaPdf({
-  job,
-  company,
-  fakturanummer,
+  faktura,
+  logoUrl,
 }: {
-  job: Job;
-  company: PdfCompany;
-  fakturanummer: number;
+  faktura: FakturaData;
+  logoUrl: string;
 }) {
-  const {
-    summary,
-    exklMoms,
-    moms,
-    arbetskostnad,
-    rotUnderlag,
-    rotAvdrag,
-    attBetala,
-  } = beräknaFaktura(job);
-  const today = new Date().toLocaleDateString("sv-SE");
-  const forfalloDate = new Date();
-  forfalloDate.setDate(forfalloDate.getDate() + (company.forfallodagar ?? 30));
-  const forfalloStr = forfalloDate.toLocaleDateString("sv-SE");
-
-  const arFastPris = job.fastPris != null;
-
-  const kund = job.customer;
-  const kundNamn = kundensNamn(kund) || "Okänd kund";
-  const bostad = rotBostad(kund);
+  const { saljare, kund, summa, satser } = faktura;
 
   const fakturaRader: [string, string, boolean?][] = [
-    ["Fakturanummer", String(fakturanummer), true],
-    ["Fakturadatum", today],
-    ["Förfallodatum", forfalloStr],
-    [`Betalningsvillkor`, `${company.forfallodagar ?? 30} dagar netto`],
-    ...(company.drojsmalsranta > 0
-      ? [[`Dröjsmålsränta`, `${company.drojsmalsranta}%`] as [string, string]]
+    ["Fakturanummer", String(faktura.fakturanummer ?? "–"), true],
+    ["Fakturadatum", faktura.fakturadatum],
+    ["Förfallodatum", faktura.forfallodatum],
+    [`Betalningsvillkor`, `${saljare.forfallodagar} dagar netto`],
+    ...(saljare.drojsmalsranta > 0
+      ? [[`Dröjsmålsränta`, `${saljare.drojsmalsranta}%`] as [string, string]]
       : []),
   ];
 
@@ -177,28 +144,30 @@ export function FakturaPdf({
         {/* ── Header ── */}
         <View style={S.header}>
           <View>
-            {company.logoUrl && (
+            {logoUrl && (
               // eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf/renderer's Image, not an HTML img
-              <Image src={company.logoUrl} style={S.logo} />
+              <Image src={logoUrl} style={S.logo} />
             )}
-            <Text style={S.companyName}>{company.name}</Text>
+            <Text style={S.companyName}>{saljare.namn}</Text>
             <View style={S.companyDetails}>
-              {company.orgNummer ? (
-                <Text>Org.nr {company.orgNummer}</Text>
+              {saljare.orgNummer ? (
+                <Text>Org.nr {saljare.orgNummer}</Text>
               ) : null}
-              {company.adress ? <Text>{company.adress}</Text> : null}
-              {company.postnummer || company.ort ? (
+              {saljare.adress ? <Text>{saljare.adress}</Text> : null}
+              {saljare.postnummer || saljare.ort ? (
                 <Text>
-                  {company.postnummer} {company.ort}
+                  {saljare.postnummer} {saljare.ort}
                 </Text>
               ) : null}
-              {company.telefon ? <Text>{company.telefon}</Text> : null}
-              {company.epost ? <Text>{company.epost}</Text> : null}
+              {saljare.telefon ? <Text>{saljare.telefon}</Text> : null}
+              {saljare.epost ? <Text>{saljare.epost}</Text> : null}
             </View>
           </View>
 
           <View style={S.fakturaRight}>
-            <Text style={S.fakturaTitle}>FAKTURA</Text>
+            <Text style={S.fakturaTitle}>
+              {faktura.fakturanummer != null ? "FAKTURA" : "FÖRHANDSGRANSKNING"}
+            </Text>
             <View style={{ marginTop: 8 }}>
               {fakturaRader.map(([label, value, bold]) => (
                 <View style={S.fakturaRow} key={label}>
@@ -217,8 +186,8 @@ export function FakturaPdf({
         {/* ── Kund ── */}
         <View style={{ marginBottom: 18 }}>
           <Text style={S.kundLabel}>Faktureras till</Text>
-          <Text style={S.kundBold}>{kundNamn}</Text>
-          {kund?.typ === "foretag" && kund.kontaktperson ? (
+          <Text style={S.kundBold}>{kund?.namn || "Okänd kund"}</Text>
+          {kund?.kontaktperson ? (
             <Text style={S.kundText}>{kund.kontaktperson}</Text>
           ) : null}
           {kund?.adress ? <Text style={S.kundText}>{kund.adress}</Text> : null}
@@ -234,13 +203,13 @@ export function FakturaPdf({
           {kund?.personnummer ? (
             <Text style={S.kundSub}>Personnummer: {kund.personnummer}</Text>
           ) : null}
-          {job.rotAvdrag && bostad ? (
-            <Text style={S.kundSub}>ROT-avdrag · {bostad}</Text>
+          {faktura.rotAvdrag && kund?.rotBostad ? (
+            <Text style={S.kundSub}>ROT-avdrag · {kund.rotBostad}</Text>
           ) : null}
         </View>
 
-        {/* ── Artikelrader ── */}
-        {!arFastPris && (
+        {/* ── Fakturarader – med fast pris finns inga ── */}
+        {faktura.rader.length > 0 && (
           <View style={S.tableWrap}>
             <View style={S.tableHead}>
               <Text style={[S.th, { flex: 1 }]}>Beskrivning</Text>
@@ -255,76 +224,33 @@ export function FakturaPdf({
               </Text>
             </View>
 
-            {job.artiklar.map((a, i) => (
+            {faktura.rader.map((rad, i) => (
               <View style={S.row} key={i}>
                 <View style={{ flex: 1 }}>
-                  <Text style={S.tdDesc}>{a.namn}</Text>
-                  {a.artikelnr || a.aterforsaljare ? (
-                    <Text style={S.tdDescSub}>
-                      {[a.artikelnr, a.aterforsaljare]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </Text>
+                  <Text style={S.tdDesc}>{rad.beskrivning}</Text>
+                  {rad.detalj ? (
+                    <Text style={S.tdDescSub}>{rad.detalj}</Text>
                   ) : null}
                 </View>
-                <Text style={[S.tdRight, { width: 44 }]}>{formateraAntal(a.antal, a.enhet)}</Text>
-                <Text style={[S.tdRight, { width: 62 }]}>{kr(a.pris)}</Text>
+                <Text style={[S.tdRight, { width: 44 }]}>
+                  {formateraAntal(rad.antal, rad.enhet)}
+                </Text>
+                <Text style={[S.tdRight, { width: 62 }]}>
+                  {fakturaAPris(rad)}
+                </Text>
                 <Text style={[S.tdRight, S.tdBold, { width: 68 }]}>
-                  {kr(a.pris * a.antal)}
+                  {kr(rad.belopp)}
                 </Text>
               </View>
             ))}
-
-            {(job.ovrigaKostnader ?? []).map((k, i) => (
-              <View style={S.row} key={`ok-${i}`}>
-                <Text style={[S.tdDesc, { flex: 1 }]}>{k.beskrivning}</Text>
-                <Text style={[S.tdRight, { width: 44 }]}>1 st</Text>
-                <Text style={[S.tdRight, { width: 62 }]}>{kr(k.pris)}</Text>
-                <Text style={[S.tdRight, S.tdBold, { width: 68 }]}>
-                  {kr(k.pris)}
-                </Text>
-              </View>
-            ))}
-
-            {summary.totalTimmar > 0 && summary.timpris > 0 && (
-              <View style={S.row}>
-                <Text style={[S.tdDesc, { flex: 1 }]}>Arbetstid</Text>
-                <Text style={[S.tdRight, { width: 44 }]}>
-                  {formateraTal(summary.totalTimmar)} h
-                </Text>
-                <Text style={[S.tdRight, { width: 62 }]}>
-                  {kr(summary.timpris)}/h
-                </Text>
-                <Text style={[S.tdRight, S.tdBold, { width: 68 }]}>
-                  {kr(summary.arbetstidSum)}
-                </Text>
-              </View>
-            )}
-
-            {summary.totalStracka > 0 && summary.milersattning > 0 && (
-              <View style={S.row}>
-                <Text style={[S.tdDesc, { flex: 1 }]}>
-                  Resor / milersättning
-                </Text>
-                <Text style={[S.tdRight, { width: 44 }]}>
-                  {formateraTal(summary.totalStracka)} km
-                </Text>
-                <Text style={[S.tdRight, { width: 62 }]}>
-                  {kr(summary.milersattning)}/km
-                </Text>
-                <Text style={[S.tdRight, S.tdBold, { width: 68 }]}>
-                  {kr(summary.resorSum)}
-                </Text>
-              </View>
-            )}
           </View>
         )}
 
-        {job.utfortArbete && (
-          <View style={arFastPris ? { marginBottom: 16 } : S.noteRow}>
+        {faktura.utfortArbete && (
+          <View style={faktura.fastPris ? { marginBottom: 16 } : S.noteRow}>
             <Text style={S.noteText}>
               <Text style={S.noteBold}>Utfört arbete: </Text>
-              {job.utfortArbete}
+              {faktura.utfortArbete}
             </Text>
           </View>
         )}
@@ -334,81 +260,89 @@ export function FakturaPdf({
           <View style={S.summBox}>
             <View style={S.summRow}>
               <Text style={S.summLabel}>
-                {job.fastPris != null
-                  ? "Fast pris exkl. moms"
-                  : "Summa exkl. moms"}
+                {faktura.fastPris ? "Fast pris exkl. moms" : "Summa exkl. moms"}
               </Text>
-              <Text style={S.summValue}>{kr(exklMoms)}</Text>
+              <Text style={S.summValue}>{kr(summa.exklMoms)}</Text>
             </View>
             {/* Arbetsdelen av ett fast pris – ROT räknas bara på den */}
-            {arFastPris && job.fastPrisArbete != null && (
+            {faktura.visaArbetskostnad && (
               <View style={S.summRow}>
                 <Text style={[S.summLabel, S.summMuted]}>
                   varav arbetskostnad exkl. moms
                 </Text>
                 <Text style={[S.summValue, S.summMuted]}>
-                  {kr(arbetskostnad)}
+                  {kr(summa.arbetskostnad)}
                 </Text>
               </View>
             )}
             <View style={S.summRow}>
               <Text style={[S.summLabel, S.summMuted]}>
-                Moms {MOMS_PROCENT}%
+                Moms {satser.momsProcent}%
               </Text>
-              <Text style={[S.summValue, S.summMuted]}>{kr(moms)}</Text>
+              <Text style={[S.summValue, S.summMuted]}>{kr(summa.moms)}</Text>
             </View>
-            {rotAvdrag > 0 && (
+            {summa.rotAvdrag > 0 && (
               <View style={S.summRow}>
                 <Text style={[S.summLabel, S.summMuted]}>
-                  ROT-avdrag {ROT_PROCENT}% (av {kr(rotUnderlag)} inkl. moms)*
+                  ROT-avdrag {satser.rotProcent}% (av {kr(summa.rotUnderlag)}{" "}
+                  inkl. moms)*
                 </Text>
-                <Text style={[S.summValue, S.summRot]}>−{kr(rotAvdrag)}</Text>
+                <Text style={[S.summValue, S.summRot]}>
+                  −{kr(summa.rotAvdrag)}
+                </Text>
+              </View>
+            )}
+            {summa.oresutjamning !== 0 && (
+              <View style={S.summRow}>
+                <Text style={[S.summLabel, S.summMuted]}>Öresutjämning</Text>
+                <Text style={[S.summValue, S.summMuted]}>
+                  {kr(summa.oresutjamning)}
+                </Text>
               </View>
             )}
             <View style={[S.summRow, S.summDivider]}>
               <Text style={S.summTotalLabel}>Att betala</Text>
-              <Text style={S.summTotalValue}>{kr(attBetala)}</Text>
+              <Text style={S.summTotalValue}>{kr(summa.attBetala)}</Text>
             </View>
           </View>
         </View>
 
         {/* ── Betalningsuppgifter ── */}
-        {(company.bankgiro || company.plusgiro || company.swish) && (
+        {(saljare.bankgiro || saljare.plusgiro || saljare.swish) && (
           <View style={S.payGrid}>
             <View style={S.payBlock}>
               <Text style={S.payLabel}>Betalningsuppgifter</Text>
-              {company.bankgiro ? (
-                <Text style={S.payText}>Bankgiro: {company.bankgiro}</Text>
+              {saljare.bankgiro ? (
+                <Text style={S.payText}>Bankgiro: {saljare.bankgiro}</Text>
               ) : null}
-              {company.plusgiro ? (
-                <Text style={S.payText}>Plusgiro: {company.plusgiro}</Text>
+              {saljare.plusgiro ? (
+                <Text style={S.payText}>Plusgiro: {saljare.plusgiro}</Text>
               ) : null}
-              {company.swish ? (
-                <Text style={S.payText}>Swish: {company.swish}</Text>
+              {saljare.swish ? (
+                <Text style={S.payText}>Swish: {saljare.swish}</Text>
               ) : null}
             </View>
             <View style={S.payBlock}>
               <Text style={S.payLabel}>Meddelande / OCR</Text>
-              <Text style={S.payText}>{fakturanummer}</Text>
+              <Text style={S.payText}>{faktura.fakturanummer ?? "–"}</Text>
             </View>
           </View>
         )}
 
         {/* ── Footer ── */}
-        {company.fakturatext ? (
-          <Text style={S.fakturatext}>{company.fakturatext}</Text>
+        {saljare.fakturatext ? (
+          <Text style={S.fakturatext}>{saljare.fakturatext}</Text>
         ) : null}
-        {company.fSkatt && (
+        {saljare.fSkatt && (
           <Text style={S.fskatt}>
             {"✓"} Godkänd för F-skatt · Momsreg.nr:{" "}
-            {company.momsNummer ||
-              `SE${(company.orgNummer ?? "").replace("-", "")}01`}
+            {saljarensMomsNummer(saljare)}
           </Text>
         )}
-        {job.rotAvdrag && (
+        {faktura.rotAvdrag && (
           <Text style={S.fskatt}>
-            * ROT-avdrag: Avser {ROT_PROCENT}% av arbetskostnad inkl. moms.
-            Hantverkaren ansöker om utbetalning hos Skatteverket.
+            * ROT-avdrag: Avser {satser.rotProcent}% av arbetskostnad inkl.
+            moms. Hantverkaren ansöker om utbetalning hos Skatteverket.
           </Text>
         )}
       </Page>

@@ -42,11 +42,15 @@ import {
 import {
   jobSchema,
   type JobInput,
-  beräknaSummering,
+  beräknaFaktura,
   beräknaPaslag,
   utprisMedPaslag,
+  formateraKr,
   formateraTal,
   kundensNamn,
+  MOMS_PROCENT,
+  radBelopp,
+  ROT_PROCENT,
   ROT_BARA_PRIVAT,
   type Customer,
 } from "@/lib/job-schema";
@@ -111,6 +115,9 @@ const sek = (n: number) =>
     currency: "SEK",
     maximumFractionDigits: 0,
   });
+
+/** Med ören, som på fakturan. Ett tomt nummerfält (NaN) visas som "–". */
+const kronor = (n: number) => (Number.isFinite(n) ? formateraKr(n) : "–");
 
 // Ett tomt nummerfält ger annars NaN, som stoppar sparningen.
 /** Tomt fält → 0, t.ex. timpris och priser. */
@@ -209,7 +216,9 @@ export default function JobForm({
   const ovrigaKostnader = useFieldArray({ control, name: "ovrigaKostnader" });
 
   const live = useWatch({ control }) as Partial<JobInput>;
-  const summering = beräknaSummering({ ...tomDefaults, ...live } as JobInput);
+  // Samma beräkning som fakturan, så att summeringen här stämmer med den
+  const faktura = beräknaFaktura({ ...tomDefaults, ...live } as JobInput);
+  const summering = faktura.summary;
 
   // "Skapa ny kund" öppnar en ny flik. När man kommer tillbaka hämtas
   // kundlistan på nytt med router.refresh() – det behåller det man redan
@@ -536,7 +545,7 @@ export default function JobForm({
           />
           {artiklar.fields.map((field, i) => {
             const rad = live.artiklar?.[i];
-            const radSumma = (rad?.pris || 0) * (rad?.antal || 0);
+            const radSumma = radBelopp(rad?.pris || 0, rad?.antal || 0);
             return (
               <div
                 key={field.id}
@@ -1131,40 +1140,62 @@ export default function JobForm({
           <SumRow
             label="Artiklar"
             icon={<Package className="h-3.5 w-3.5" />}
-            value={sek(summering.artiklarSum)}
+            value={kronor(summering.artiklarSum)}
           />
           {summering.ovrigaSum > 0 && (
             <SumRow
               label="Övriga kostnader"
               icon={<StickyNote className="h-3.5 w-3.5" />}
-              value={sek(summering.ovrigaSum)}
+              value={kronor(summering.ovrigaSum)}
             />
           )}
           <SumRow
             label={`Arbetstid (${formateraTal(summering.totalTimmar)} h × ${formateraTal(summering.timpris)} kr/h)`}
             icon={<Clock className="h-3.5 w-3.5" />}
-            value={sek(summering.arbetstidSum)}
+            value={kronor(summering.arbetstidSum)}
           />
           <SumRow
             label={`Resor (${formateraTal(summering.totalStracka)} km × ${formateraTal(summering.milersattning)} kr/km)`}
             icon={<Van className="h-3.5 w-3.5" />}
-            value={sek(summering.resorSum)}
+            value={kronor(summering.resorSum)}
           />
           <Separator />
-          <SumRow
-            label="Totalt exkl. moms"
-            icon={<Receipt className="h-3.5 w-3.5" />}
-            value={sek(summering.totalExklMoms)}
-          />
-          {live.rotAvdrag && (
+          {live.fastPris != null ? (
             <>
-              <Separator />
-              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                ROT-avdrag markerat — beräknas av den som fakturerar.
-              </p>
+              <SumRow
+                label="Löpande räkning exkl. moms (står inte på fakturan)"
+                icon={<Receipt className="h-3.5 w-3.5" />}
+                value={kronor(summering.totalExklMoms)}
+              />
+              <SumRow
+                label="Fast pris exkl. moms"
+                icon={<Receipt className="h-3.5 w-3.5" />}
+                value={kronor(faktura.exklMoms)}
+              />
             </>
+          ) : (
+            <SumRow
+              label="Totalt exkl. moms"
+              icon={<Receipt className="h-3.5 w-3.5" />}
+              value={kronor(faktura.exklMoms)}
+            />
           )}
+          <SumRow label={`Moms ${MOMS_PROCENT} %`} value={kronor(faktura.moms)} />
+          {faktura.rotAvdrag > 0 && (
+            <SumRow
+              label={`ROT-avdrag ${ROT_PROCENT} % av ${kronor(faktura.rotUnderlag)} arbete inkl. moms`}
+              icon={<CheckCircle2 className="h-3.5 w-3.5" />}
+              value={`−${kronor(faktura.rotAvdrag)}`}
+            />
+          )}
+          {Number.isFinite(faktura.oresutjamning) && faktura.oresutjamning !== 0 && (
+            <SumRow
+              label="Öresutjämning"
+              value={kronor(faktura.oresutjamning)}
+            />
+          )}
+          <Separator />
+          <SumRow label="Att betala" value={kronor(faktura.attBetala)} />
         </div>
       </FormSection>
 

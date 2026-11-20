@@ -22,6 +22,7 @@ import {
   formateraKr,
   formateraTal,
   kundensNamn,
+  radBelopp,
   type Job,
 } from "@/lib/job-schema";
 import { InfoItem, toTelHref } from "./job-overview-badges";
@@ -183,7 +184,7 @@ export function MaterialSection({ job }: { job: Job }) {
               </div>
               <div className="text-left text-sm tabular-nums sm:text-right">
                 <div className="font-medium">
-                  {formateraKr(artikel.pris * artikel.antal)}
+                  {formateraKr(radBelopp(artikel.pris, artikel.antal))}
                 </div>
                 <div className="text-xs text-muted-foreground">
                   {formateraKr(artikel.pris)} /{" "}

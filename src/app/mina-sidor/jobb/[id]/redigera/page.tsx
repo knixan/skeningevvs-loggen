@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { headers } from "next/headers";
 import { redirect, notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { getJob, getCustomers } from "@/lib/job-actions";
+import { getJob, getCustomers, getFaktura } from "@/lib/queries";
 import { prisma } from "@/lib/prisma";
 import EditJobClient from "@/components/minasidor/jobb/edit-job-client";
 
@@ -31,13 +31,14 @@ async function RedigeraJobbInnehall({
   if (!session?.user) redirect("/logga-in");
 
   const { id } = await params;
-  const [job, customers, company] = await Promise.all([
+  const [job, customers, company, faktura] = await Promise.all([
     getJob(id),
     getCustomers(),
     prisma.company.findFirst({
       where: { ownerId: session.user.id },
       select: { materialPaslag: true },
     }),
+    getFaktura(id),
   ]);
 
   if (!job) notFound();
@@ -45,6 +46,12 @@ async function RedigeraJobbInnehall({
   return (
     <>
       <h1 className="text-2xl font-bold mb-6">Redigera jobb</h1>
+      {faktura && (
+        <p className="mb-6 rounded-md border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+          Faktura {faktura.fakturanummer} är utfärdad och sparad. Ändringar
+          här påverkar inte fakturan.
+        </p>
+      )}
       <EditJobClient
         job={job}
         customers={customers}

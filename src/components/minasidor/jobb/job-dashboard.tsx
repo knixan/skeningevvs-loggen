@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Search } from "lucide-react";
 import JobList from "@/components/minasidor/jobb/job-list";
-import { deleteJob, getJobs } from "@/lib/job-actions";
+import { deleteJob, laddaFlerJobb } from "@/lib/job-actions";
 import { kundensNamn, type Job } from "@/lib/job-schema";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -158,7 +158,7 @@ export default function JobDashboard({
   function loadMore() {
     if (!cursor) return;
     startTransition(async () => {
-      const result = await getJobs(cursor);
+      const result = await laddaFlerJobb(cursor);
       setAllJobs((prev) => [...prev, ...result.jobs]);
       setCursor(result.nextCursor);
     });
