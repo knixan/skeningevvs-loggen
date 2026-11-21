@@ -69,7 +69,7 @@ export function Nyckeltal({
 // Jobben just nu
 // ------------------------------------------------------------
 
-// Samma färger som statusfiltren i jobblistan
+// Egna färger (inte Chip-tonerna) – fem grupper som måste gå att skilja åt
 const STATUSRADER: {
   nyckel: keyof Statistik["status"];
   namn: string;

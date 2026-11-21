@@ -6,10 +6,9 @@ import { idagISverige } from "@/lib/datum";
 import { getFakturaAr, getFakturor } from "@/lib/queries";
 import { getSession } from "@/lib/server-hjalp";
 import { fakturaKr } from "@/lib/faktura";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/minasidor/oversikt/job-overview-badges";
+import { Chip, filterChipKlass } from "@/components/minasidor/chip";
 import { Sida, SidHuvud, SidLaddar } from "@/components/minasidor/sida";
 
 export const metadata = { title: "Fakturor – Skeningevvs-loggen" };
@@ -69,12 +68,7 @@ async function FakturorInnehall({ searchParams }: Props) {
             key={a}
             href={a === innevarande ? "/mina-sidor/fakturor" : `?ar=${a}`}
             aria-current={a === ar ? "page" : undefined}
-            className={cn(
-              "inline-flex min-h-9 items-center rounded-full border px-3 text-sm font-medium transition-colors",
-              a === ar
-                ? "border-foreground bg-foreground text-background"
-                : "hover:bg-muted",
-            )}
+            className={filterChipKlass(a === ar)}
           >
             {a}
           </Link>
@@ -109,26 +103,21 @@ async function FakturorInnehall({ searchParams }: Props) {
                         {f.fakturanummer}
                       </span>
                       {f.arKredit && f.krediterarNummer != null && (
-                        <Badge
-                          label={`Krediterar ${f.krediterarNummer}`}
-                          color="red"
-                        />
+                        <Chip ton="fel">Krediterar {f.krediterarNummer}</Chip>
                       )}
                       {f.krediteradAvNummer != null && (
-                        <Badge
-                          label={`Krediterad av ${f.krediteradAvNummer}`}
-                          color="red"
-                        />
+                        <Chip ton="fel">
+                          Krediterad av {f.krediteradAvNummer}
+                        </Chip>
                       )}
                       {!f.arKredit &&
                         f.krediteradAvNummer == null &&
                         f.betalt != null && (
-                          <Badge
-                            label={f.betalt ? "Betald" : "Obetald"}
-                            color={f.betalt ? "green" : "orange"}
-                          />
+                          <Chip ton={f.betalt ? "ok" : "varning"}>
+                            {f.betalt ? "Betald" : "Obetald"}
+                          </Chip>
                         )}
-                      {f.omvandMoms && <Badge label="Omvänd moms" />}
+                      {f.omvandMoms && <Chip>Omvänd moms</Chip>}
                     </div>
                     <p className="truncate text-sm text-muted-foreground">
                       {f.kund || "Okänd kund"} · {f.fakturadatum}

@@ -16,6 +16,7 @@ import {
   type JobbRaknare,
 } from "@/lib/jobb-filter";
 import { cn } from "@/lib/utils";
+import { filterChipKlass } from "@/components/minasidor/chip";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -30,44 +31,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-
-const FARG: Record<JobbFilter, { aktiv: string; inaktiv: string }> = {
-  alla: {
-    aktiv: "bg-gray-800 text-white border-gray-800 hover:bg-gray-700",
-    inaktiv:
-      "border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300",
-  },
-  "ej-paborjat": {
-    aktiv: "bg-gray-500 text-white border-gray-500 hover:bg-gray-400",
-    inaktiv:
-      "border-gray-300 text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-400",
-  },
-  pagaende: {
-    aktiv: "bg-blue-600 text-white border-blue-600 hover:bg-blue-500",
-    inaktiv:
-      "border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-400",
-  },
-  utfort: {
-    aktiv: "bg-red-600 text-white border-red-600 hover:bg-red-500",
-    inaktiv:
-      "border-red-300 text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-400",
-  },
-  "folj-upp": {
-    aktiv: "bg-amber-500 text-white border-amber-500 hover:bg-amber-400",
-    inaktiv:
-      "border-amber-300 text-amber-800 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-300",
-  },
-  fakturerat: {
-    aktiv: "bg-orange-500 text-white border-orange-500 hover:bg-orange-400",
-    inaktiv:
-      "border-orange-300 text-orange-700 hover:bg-orange-50 dark:border-orange-700 dark:text-orange-400",
-  },
-  betalt: {
-    aktiv: "bg-green-600 text-white border-green-600 hover:bg-green-500",
-    inaktiv:
-      "border-green-300 text-green-700 hover:bg-green-50 dark:border-green-700 dark:text-green-400",
-  },
-};
 
 /** Ett jobb som fakturerats kan inte tas bort (bokföringslagen). */
 function arFakturerat(job: Job) {
@@ -191,10 +154,7 @@ export default function JobDashboard({
             type="button"
             aria-pressed={filter === f}
             onClick={() => visa(f, sok)}
-            className={cn(
-              "inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
-              filter === f ? FARG[f].aktiv : FARG[f].inaktiv,
-            )}
+            className={filterChipKlass(filter === f)}
           >
             {JOBB_FILTER_TEXT[f]}
             <span className="text-xs opacity-80">({raknare[f]})</span>

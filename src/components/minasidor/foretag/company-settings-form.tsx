@@ -257,7 +257,7 @@ export default function CompanySettingsForm({ company }: Props) {
           >
             <Input {...register("momsNummer")} placeholder="SE556677889901" />
             {!momsNummer.trim() ? (
-              <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
+              <p className="text-xs font-medium text-varning">
                 Krävs för att kunna utfärda fakturor – det ska stå på varje
                 faktura.
               </p>

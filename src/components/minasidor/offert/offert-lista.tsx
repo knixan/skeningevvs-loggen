@@ -17,15 +17,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import { Chip, filterChipKlass, type ChipTon } from "@/components/minasidor/chip";
 import { SkapaJobbKnapp, TaBortOffertKnapp } from "./offert-knappar";
 
-const statusFarg: Record<OffertStatus, string> = {
-  utkast: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
-  skickad: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400",
-  accepterad:
-    "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400",
-  avbojd: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400",
+const statusTon: Record<OffertStatus, ChipTon> = {
+  utkast: "neutral",
+  skickad: "info",
+  accepterad: "ok",
+  avbojd: "fel",
 };
 
 type Filter = "alla" | OffertStatus;
@@ -93,12 +92,7 @@ export default function OffertLista({
               type="button"
               aria-pressed={filter === f.value}
               onClick={() => setFilter(f.value)}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
-                filter === f.value
-                  ? "border-foreground bg-foreground text-background"
-                  : "border-border text-muted-foreground hover:bg-muted",
-              )}
+              className={filterChipKlass(filter === f.value)}
             >
               {f.label}
               <span className="text-xs opacity-80">({antal})</span>
@@ -131,7 +125,7 @@ export default function OffertLista({
                       </p>
                       <Link
                         href={`/mina-sidor/offerter/${o.id}/redigera`}
-                        className="block truncate text-lg font-bold text-blue-700 hover:underline dark:text-blue-400"
+                        className="block truncate text-lg font-bold text-blue-700 hover:underline"
                       >
                         {kundensNamn(o.customer) || "Ingen kund vald"}
                       </Link>
@@ -154,29 +148,12 @@ export default function OffertLista({
                   {/* Nederst: status och giltighet till vänster, knappar till höger */}
                   <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <span
-                        className={cn(
-                          "rounded-full px-2 py-0.5 text-[10px] font-bold",
-                          statusFarg[o.status],
-                        )}
-                      >
+                      <Chip ton={statusTon[o.status]}>
                         {OFFERT_STATUS_TEXT[o.status]}
-                      </span>
-                      {gattUt && (
-                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
-                          Har gått ut
-                        </span>
-                      )}
-                      {o.rotAvdrag && (
-                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-700 dark:bg-gray-800 dark:text-gray-300">
-                          ROT
-                        </span>
-                      )}
-                      {o.fastPris != null && (
-                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-700 dark:bg-gray-800 dark:text-gray-300">
-                          Fast pris
-                        </span>
-                      )}
+                      </Chip>
+                      {gattUt && <Chip ton="varning">Har gått ut</Chip>}
+                      {o.rotAvdrag && <Chip>ROT</Chip>}
+                      {o.fastPris != null && <Chip>Fast pris</Chip>}
                       <span className="ml-1 inline-flex items-center gap-1 whitespace-nowrap text-xs text-muted-foreground">
                         <CalendarClock className="h-3.5 w-3.5" />
                         Gäller t.o.m. {kortDatum(o.giltigTill)}

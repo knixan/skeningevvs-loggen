@@ -135,7 +135,7 @@ export default function AhlsellSok({
                         {t.bestallningsmultipel > 1 &&
                           ` · Säljs i ${t.bestallningsmultipel.toLocaleString("sv-SE")} ${t.enhet.toLowerCase()}`}
                         {varning && (
-                          <span className="text-amber-600 dark:text-amber-400">
+                          <span className="text-varning">
                             {" "}
                             · {varning}
                           </span>

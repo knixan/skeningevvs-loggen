@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { kundensNamn, type Customer } from "@/lib/job-schema";
+import { Chip } from "@/components/minasidor/chip";
 import CustomerDeleteButton from "./customer-delete-button";
 
 function matchar(kund: Customer, q: string) {
@@ -59,15 +60,9 @@ export default function KundLista({ customers }: { customers: Customer[] }) {
                     <span className="font-semibold truncate">
                       {kundensNamn(c)}
                     </span>
-                    <span
-                      className={`text-[10px] font-bold rounded-full px-2 py-0.5 ${
-                        c.typ === "foretag"
-                          ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400"
-                          : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
-                      }`}
-                    >
+                    <Chip ton={c.typ === "foretag" ? "info" : "neutral"}>
                       {c.typ === "foretag" ? "Företag" : "Privat"}
-                    </span>
+                    </Chip>
                   </div>
                   {c.typ === "foretag" && (c.kontaktperson || c.namn) && (
                     <p className="text-sm text-muted-foreground">

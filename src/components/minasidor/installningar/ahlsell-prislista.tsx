@@ -272,7 +272,7 @@ function InlasningForm({ status }: { status: AhlsellStatus }) {
         </Field>
       </div>
 
-      <div className="flex gap-2.5 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-xs text-sky-950 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-100">
+      <div className="flex gap-2.5 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-xs text-sky-950">
         <Info className="size-4 shrink-0 mt-px" aria-hidden />
         <div className="space-y-1">
           <p className="font-medium">Kom ihåg att läsa in nya filer när något ändras</p>

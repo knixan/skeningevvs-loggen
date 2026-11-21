@@ -63,7 +63,7 @@ export default function DeleteAccountButton() {
               företagsuppgifter, alla jobb, kunder, bilder och ditt konto.
               Åtgärden kan inte ångras.
             </span>
-            <span className="block rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+            <span className="block rounded-md border border-varning/30 bg-varning/10 px-3 py-2 text-varning">
               Fakturor ska sparas i sju år enligt bokföringslagen. Även de
               utfärdade fakturorna raderas.{" "}
               <strong>Ladda ner dem först:</strong>{" "}

@@ -12,7 +12,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { beräknaSummering, kundensNamn, type Job } from "@/lib/job-schema";
 
-import { Badge, FoljUppBadge, StatusBadge } from "./job-overview-badges";
+import { FoljUppBadge, StatusBadge } from "./job-overview-badges";
+import { Chip } from "@/components/minasidor/chip";
 import { printJob } from "../faktura/print-job";
 import { JobOverviewImages } from "./job-overview-images";
 import {
@@ -67,9 +68,9 @@ export default function JobOverviewDialog({
             <div className="flex flex-wrap gap-2">
               <StatusBadge job={job} />
               <FoljUppBadge job={job} />
-              {job.rotAvdrag && <Badge label="ROT" />}
-              {job.fakturerat && <Badge label="Fakturerat" color="orange" />}
-              {job.betalt && <Badge label="Betalt" color="green" />}
+              {job.rotAvdrag && <Chip>ROT</Chip>}
+              {job.fakturerat && <Chip ton="varning">Fakturerat</Chip>}
+              {job.betalt && <Chip ton="ok">Betalt</Chip>}
             </div>
             <Separator />
             <ContactSection job={job} />

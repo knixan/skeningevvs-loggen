@@ -2,12 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { merItems, navItems } from "./nav-items";
+import { mobilmenyItems, navItems } from "./nav-items";
 
 /** Utskrifter (faktura, offert) visas utan meny. */
-function arUtskrift(pathname: string) {
+export function arUtskrift(pathname: string) {
   return pathname.endsWith("/skriv-ut");
 }
 
@@ -49,25 +48,13 @@ export function MinaSidorMobileNav() {
   const pathname = usePathname();
   if (arUtskrift(pathname)) return null;
 
-  const knappar = [
-    ...navItems.filter((i) => i.iMobilmeny),
-    {
-      href: "/mina-sidor/mer",
-      mobileLabel: "Mer",
-      icon: Menu,
-      // Mer är aktiv på sin egen sida och på alla sidor under den
-      isActive: (p: string) =>
-        p.startsWith("/mina-sidor/mer") || merItems.some((i) => i.isActive(p)),
-    },
-  ];
-
   return (
     <nav
       aria-label="Huvudmeny"
       className="fixed inset-x-0 bottom-0 z-30 flex border-t bg-background md:hidden print:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      {knappar.map(({ href, mobileLabel, icon: Icon, isActive }) => {
+      {mobilmenyItems.map(({ href, mobileLabel, icon: Icon, isActive }) => {
         const active = isActive(pathname);
         return (
           <Link

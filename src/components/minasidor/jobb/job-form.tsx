@@ -668,14 +668,14 @@ export default function JobForm({
             />
             <Felmeddelande fel={rotForForetag ? ROT_BARA_PRIVAT : undefined} />
             {rotSaknas.length > 0 && (
-              <p className="flex items-start gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+              <p className="flex items-start gap-1.5 text-xs font-medium text-varning">
                 <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 Fakturan kan inte utfärdas förrän kunden har{" "}
                 {rotSaknas.join(" och ")} i kundregistret.
               </p>
             )}
             {rotTak && (
-              <p className="flex items-start gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+              <p className="flex items-start gap-1.5 text-xs font-medium text-varning">
                 <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 {rotTak}
               </p>
@@ -732,7 +732,7 @@ export default function JobForm({
       >
         <div className="space-y-2 text-sm">
           {live.artiklar?.some((a) => !a.pris) && (
-            <p className="text-xs text-amber-600 dark:text-amber-400 font-medium pb-1 flex items-center gap-1.5">
+            <p className="text-xs text-varning font-medium pb-1 flex items-center gap-1.5">
               <TriangleAlert className="h-3.5 w-3.5" />
               En eller flera artiklar saknar pris — totalsumman är inte
               komplett.

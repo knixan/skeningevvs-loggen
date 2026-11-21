@@ -248,7 +248,7 @@ export function ArtiklarFalt({
                   placeholder="kr"
                 />
                 {!(rad?.pris && rad.pris > 0) && (
-                  <p className="text-xs font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                  <p className="text-xs font-bold text-varning flex items-center gap-1">
                     <TriangleAlert className="h-3 w-3" />
                     Utpris ej ifyllt
                   </p>

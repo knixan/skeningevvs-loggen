@@ -108,7 +108,7 @@ export function InfoRuta({
         "mb-6 rounded-lg border px-4 py-3 text-sm",
         ton === "info" && "bg-muted/40 text-muted-foreground",
         ton === "varning" &&
-          "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200",
+          "border-varning/30 bg-varning/10 text-varning",
       )}
     >
       {children}

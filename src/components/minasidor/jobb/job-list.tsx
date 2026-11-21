@@ -6,6 +6,7 @@ import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Chip } from "@/components/minasidor/chip";
 import {
   beräknaSummering,
   formateraTal,
@@ -17,7 +18,6 @@ import { BildVisare } from "../bild-visare";
 import {
   StatusBadge,
   FoljUppBadge,
-  Badge,
 } from "../oversikt/job-overview-badges";
 
 interface Props {
@@ -67,7 +67,7 @@ export default function JobList({ jobs, onEdit, onDelete }: Props) {
               {/* Överst: kund och jobb till vänster, siffrorna till höger */}
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0 space-y-1">
-                  <div className="truncate text-lg font-bold text-blue-700 dark:text-blue-400">
+                  <div className="truncate text-lg font-bold text-blue-700">
                     {customerDisplayName || "Jobb utan kundnamn"}
                   </div>
                   {beskrivning && (
@@ -120,10 +120,10 @@ export default function JobList({ jobs, onEdit, onDelete }: Props) {
                   <StatusBadge job={job} />
                   <FoljUppBadge job={job} />
                   {job.fakturerat && (
-                    <Badge label="Fakturerat" color="orange" />
+                    <Chip ton="varning">Fakturerat</Chip>
                   )}
-                  {job.betalt && <Badge label="Betalt" color="green" />}
-                  {job.rotAvdrag && <Badge label="ROT" />}
+                  {job.betalt && <Chip ton="ok">Betalt</Chip>}
+                  {job.rotAvdrag && <Chip>ROT</Chip>}
                 </div>
 
                 <div className="flex items-center gap-2">

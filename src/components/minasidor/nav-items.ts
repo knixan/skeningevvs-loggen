@@ -10,8 +10,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-// Menyns sidor. En vanlig modul (inte "use client"), så att både menyn och
-// serversidan "Mer" kan läsa listan.
+// Menyns sidor. På dator står alla i sidomenyn. På mobilen står de som
+// används ute på jobb i bottenmenyn, och resten som ikoner i toppraden.
 
 export type NavItem = {
   href: string;
@@ -20,8 +20,8 @@ export type NavItem = {
   icon: LucideIcon;
   isActive: (p: string) => boolean;
   /**
-   * Egen knapp i bottenmenyn på mobilen. Övriga nås via "Mer" – bottenmenyn
-   * har högst fem knappar så att de får plats med tummen på 360 px.
+   * Knapp i bottenmenyn på mobilen. Övriga blir ikoner i toppraden –
+   * bottenmenyn har högst fem knappar så att de får plats på 360 px.
    */
   iMobilmeny: boolean;
 };
@@ -65,7 +65,7 @@ export const navItems: NavItem[] = [
     mobileLabel: "Fakturor",
     icon: Receipt,
     isActive: (p) => p.startsWith("/mina-sidor/fakturor"),
-    iMobilmeny: false,
+    iMobilmeny: true,
   },
   {
     href: "/mina-sidor/statistik",
@@ -93,6 +93,9 @@ export const navItems: NavItem[] = [
   },
 ];
 
-/** Sidorna som nås via "Mer" på mobilen. */
-export const merItems = navItems.filter((i) => !i.iMobilmeny);
+/** Sidorna i bottenmenyn på mobilen. */
+export const mobilmenyItems = navItems.filter((i) => i.iMobilmeny);
+
+/** Sidorna som är ikoner i toppraden på mobilen. */
+export const toppradItems = navItems.filter((i) => !i.iMobilmeny);
 
