@@ -12,8 +12,12 @@ import { kundensNamn, type Job } from "@/lib/job-schema";
 import {
   JOBB_FILTER,
   JOBB_FILTER_TEXT,
+  JOBB_SORTERING,
+  JOBB_SORTERING_TEXT,
+  tolkaJobbSortering,
   type JobbFilter,
   type JobbRaknare,
+  type JobbSortering,
 } from "@/lib/jobb-filter";
 import { cn } from "@/lib/utils";
 import { filterChipKlass } from "@/components/minasidor/chip";
@@ -42,6 +46,7 @@ interface Props {
   nextCursor: string | null;
   filter: JobbFilter;
   sok: string;
+  sortering: JobbSortering;
   /** Antal per filter, räknat i databasen över alla jobb som matchar sökningen */
   raknare: JobbRaknare;
 }
@@ -51,6 +56,7 @@ export default function JobDashboard({
   nextCursor: initialCursor,
   filter,
   sok: initialSok,
+  sortering,
   raknare,
 }: Props) {
   const router = useRouter();
@@ -70,11 +76,16 @@ export default function JobDashboard({
     setCursor(initialCursor);
   }
 
-  /** Byter filter/sökning i adressen – servern filtrerar och räknar. */
-  function visa(nyttFilter: JobbFilter, nyttSok: string) {
+  /** Byter filter/sökning/sortering i adressen – servern gör resten. */
+  function visa(
+    nyttFilter: JobbFilter,
+    nyttSok: string,
+    nySortering: JobbSortering = sortering,
+  ) {
     const params = new URLSearchParams();
     if (nyttFilter !== "alla") params.set("status", nyttFilter);
     if (nyttSok.trim()) params.set("sok", nyttSok.trim());
+    if (nySortering !== "nyast") params.set("sortera", nySortering);
     const qs = params.toString();
     startByt(() => {
       router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
@@ -111,7 +122,7 @@ export default function JobDashboard({
     if (!cursor) return;
     startLadda(async () => {
       const result = await anropaAction(() =>
-        laddaFlerJobb({ cursor, filter, sok: initialSok }),
+        laddaFlerJobb({ cursor, filter, sok: initialSok, sortering }),
       );
       if ("error" in result && result.error) {
         toast.error(result.error);
@@ -128,20 +139,37 @@ export default function JobDashboard({
 
   return (
     <div className="space-y-4">
-      <div className="relative">
-        <Search
-          className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-          aria-hidden
-        />
-        <Input
-          type="search"
-          inputMode="search"
-          aria-label="Sök bland jobben"
-          placeholder="Sök kund, adress, utfört arbete, fakturanr..."
-          value={sok}
-          onChange={(e) => setSok(e.target.value)}
-          className="h-10 pl-9"
-        />
+      <div className="flex gap-2">
+        <div className="relative min-w-0 flex-1">
+          <Search
+            className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+            aria-hidden
+          />
+          <Input
+            type="search"
+            inputMode="search"
+            aria-label="Sök bland jobben"
+            placeholder="Sök kund, adress, utfört arbete, fakturanr..."
+            value={sok}
+            onChange={(e) => setSok(e.target.value)}
+            className="h-10 pl-9"
+          />
+        </div>
+        {/* Vanlig select: mobilens egen väljare är lättast att träffa */}
+        <select
+          aria-label="Sortera jobben"
+          value={sortering}
+          onChange={(e) =>
+            visa(filter, sok, tolkaJobbSortering(e.target.value))
+          }
+          className="h-10 shrink-0 rounded-md border border-input bg-background px-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        >
+          {JOBB_SORTERING.map((s) => (
+            <option key={s} value={s}>
+              {JOBB_SORTERING_TEXT[s]}
+            </option>
+          ))}
+        </select>
       </div>
       <div
         className="flex flex-wrap gap-2"

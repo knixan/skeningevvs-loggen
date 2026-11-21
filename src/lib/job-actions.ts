@@ -27,7 +27,11 @@ import {
   foljUppDatumTillDb,
   nyttJobbTillDb,
 } from "./jobb-db";
-import { tolkaJobbFilter, tolkaJobbSok } from "./jobb-filter";
+import {
+  tolkaJobbFilter,
+  tolkaJobbSok,
+  tolkaJobbSortering,
+} from "./jobb-filter";
 import {
   GALLANDE_FAKTURA,
   getJobs,
@@ -388,6 +392,7 @@ export async function laddaFlerJobb(sokning: {
   cursor: string;
   filter?: string;
   sok?: string;
+  sortering?: string;
 }) {
   const cursor = idSchema.safeParse(sokning?.cursor);
   if (!cursor.success) return { jobs: [], nextCursor: null };
@@ -396,6 +401,7 @@ export async function laddaFlerJobb(sokning: {
       cursor: cursor.data,
       filter: tolkaJobbFilter(sokning.filter),
       sok: tolkaJobbSok(sokning.sok),
+      sortering: tolkaJobbSortering(sokning.sortering),
     });
   } catch (err) {
     console.error("Kunde inte ladda fler jobb:", err);

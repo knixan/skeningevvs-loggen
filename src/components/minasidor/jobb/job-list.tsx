@@ -1,8 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { ClipboardList, FileText, Pencil, Trash2 } from "lucide-react";
+import {
+  CalendarDays,
+  ClipboardList,
+  FileText,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 import Link from "next/link";
+import { kortDatumMedAr, kortTidpunkt } from "@/lib/datum";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -56,6 +63,11 @@ export default function JobList({ jobs, onEdit, onDelete }: Props) {
         ]
           .filter(Boolean)
           .join(", ");
+        // Senaste arbetspasset (YYYY-MM-DD jämförs rätt som text)
+        const senastArbetat = job.arbetstider.reduce<string | null>(
+          (senast, a) => (!senast || a.datum > senast ? a.datum : senast),
+          null,
+        );
 
         return (
           <Card
@@ -77,6 +89,14 @@ export default function JobList({ jobs, onEdit, onDelete }: Props) {
                   )}
                   <p className="truncate text-sm text-muted-foreground">
                     {customerAddress || "Ingen adress angiven"}
+                  </p>
+                  <p className="flex items-center gap-1 truncate text-xs text-muted-foreground">
+                    <CalendarDays className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                    <span className="truncate">
+                      Skapat {kortTidpunkt(job.skapad)}
+                      {senastArbetat &&
+                        ` · Senast arbetat ${kortDatumMedAr(senastArbetat)}`}
+                    </span>
                   </p>
                 </div>
 

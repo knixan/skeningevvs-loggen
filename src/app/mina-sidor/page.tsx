@@ -4,7 +4,11 @@ import Link from "next/link";
 import { Plus } from "lucide-react";
 import { getJobbRaknare, getJobs } from "@/lib/queries";
 import { getSession } from "@/lib/server-hjalp";
-import { tolkaJobbFilter, tolkaJobbSok } from "@/lib/jobb-filter";
+import {
+  tolkaJobbFilter,
+  tolkaJobbSok,
+  tolkaJobbSortering,
+} from "@/lib/jobb-filter";
 import { Button } from "@/components/ui/button";
 import { Sida, SidHuvud, SidLaddar } from "@/components/minasidor/sida";
 import JobDashboard from "@/components/minasidor/jobb/job-dashboard";
@@ -27,15 +31,17 @@ async function MinaSidorInnehall({ searchParams }: Props) {
   const session = await getSession();
   if (!session?.user) redirect("/logga-in");
 
-  // ?status=fakturerat&sok=berga – filtreras och räknas i databasen
+  // ?status=fakturerat&sok=berga&sortera=aldst – filtreras, sorteras och
+  // räknas i databasen
   const sp = await searchParams;
   const forsta = (v: string | string[] | undefined) =>
     Array.isArray(v) ? v[0] : v;
   const filter = tolkaJobbFilter(forsta(sp.status));
   const sok = tolkaJobbSok(forsta(sp.sok));
+  const sortering = tolkaJobbSortering(forsta(sp.sortera));
 
   const [{ jobs, nextCursor }, raknare] = await Promise.all([
-    getJobs({ filter, sok }),
+    getJobs({ filter, sok, sortering }),
     getJobbRaknare(sok),
   ]);
 
@@ -58,6 +64,7 @@ async function MinaSidorInnehall({ searchParams }: Props) {
         nextCursor={nextCursor}
         filter={filter}
         sok={sok}
+        sortering={sortering}
         raknare={raknare}
       />
     </>

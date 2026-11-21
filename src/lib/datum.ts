@@ -59,3 +59,30 @@ export function kortDatum(datum: string): string {
     month: "short",
   });
 }
+
+const SVENSK_TID = "Europe/Stockholm";
+
+function aretISverige(d: Date): string {
+  return d.toLocaleDateString("sv-SE", { timeZone: SVENSK_TID, year: "numeric" });
+}
+
+/**
+ * En tidpunkt (ISO, t.ex. `skapad`) → "12 nov." i svensk tid. Årtalet
+ * skrivs bara ut om det inte är i år.
+ */
+export function kortTidpunkt(iso: string): string {
+  const d = new Date(iso);
+  const iAr = aretISverige(d) === aretISverige(new Date());
+  return d.toLocaleDateString("sv-SE", {
+    timeZone: SVENSK_TID,
+    day: "numeric",
+    month: "short",
+    ...(iAr ? {} : { year: "numeric" }),
+  });
+}
+
+/** `YYYY-MM-DD` → "25 nov.", med årtal om det inte är i år. Utan tidszon. */
+export function kortDatumMedAr(datum: string): string {
+  const ar = datum.slice(0, 4);
+  return ar === aretISverige(new Date()) ? kortDatum(datum) : `${kortDatum(datum)} ${ar}`;
+}

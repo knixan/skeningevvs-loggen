@@ -37,3 +37,21 @@ export function tolkaJobbSok(v: unknown): string {
 }
 
 export type JobbRaknare = Record<JobbFilter, number>;
+
+// Sorteringen i jobblistan, t.ex. /mina-sidor?sortera=aldst. Görs i
+// databasen (queries.ts), så att "Ladda fler" fortsätter i rätt ordning.
+export const JOBB_SORTERING = ["nyast", "aldst"] as const;
+
+export type JobbSortering = (typeof JOBB_SORTERING)[number];
+
+export const JOBB_SORTERING_TEXT: Record<JobbSortering, string> = {
+  nyast: "Nyast först",
+  aldst: "Äldst först",
+};
+
+/** Ett värde från adressen → en giltig sortering, annars "nyast". */
+export function tolkaJobbSortering(v: unknown): JobbSortering {
+  return (JOBB_SORTERING as readonly unknown[]).includes(v)
+    ? (v as JobbSortering)
+    : "nyast";
+}

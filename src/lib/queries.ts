@@ -2,7 +2,7 @@ import "server-only";
 
 import type { Prisma } from "@prisma/client";
 import type { FakturaData } from "./faktura";
-import type { JobbFilter, JobbRaknare } from "./jobb-filter";
+import type { JobbFilter, JobbRaknare, JobbSortering } from "./jobb-filter";
 import {
   OFFERT_STATUSAR,
   type Offert,
@@ -191,7 +191,8 @@ export async function getCustomer(id: string) {
 // Jobb
 // ------------------------------------------------------------
 
-const JOBS_PER_PAGE = 50;
+// Korten är höga – på mobilen blir 50 en väldigt lång lista
+const JOBS_PER_PAGE = 12;
 
 /** Statusfiltret som ett villkor i databasen. */
 function statusVillkor(filter: JobbFilter): Prisma.JobWhereInput {
@@ -236,22 +237,26 @@ function sokVillkor(sok: string): Prisma.JobWhereInput {
 export type JobbSokning = {
   filter?: JobbFilter;
   sok?: string;
+  sortering?: JobbSortering;
   /** id på sista jobbet som redan visas ("Ladda fler") */
   cursor?: string;
 };
 
 /**
- * En sida jobb. Filtrering och sökning görs i databasen, så att de gäller
- * alla jobb – inte bara de som redan laddats.
+ * En sida jobb. Filtrering, sökning och sortering görs i databasen, så att
+ * de gäller alla jobb – inte bara de som redan laddats – och så att "Ladda
+ * fler" fortsätter i samma ordning.
  */
 export async function getJobs({
   filter = "alla",
   sok = "",
+  sortering = "nyast",
   cursor,
 }: JobbSokning = {}) {
   const company = await inloggatForetag();
   if (!company) return { jobs: [], nextCursor: null };
 
+  const riktning = sortering === "aldst" ? ("asc" as const) : ("desc" as const);
   const items = await prisma.job.findMany({
     where: {
       companyId: company.id,
@@ -261,13 +266,14 @@ export async function getJobs({
     include: JOBB_MED_RADER,
     // id som sista sorteringsnyckel: jobb med exakt samma tid måste ändå få
     // en fast ordning, annars kan "Ladda fler" hoppa över eller upprepa jobb.
-    // Följ upp: med datum först (tidigast överst), sedan de utan datum.
+    // Följ upp: med datum först (tidigast överst), sedan de utan datum, och
+    // därefter nyast/äldst.
     orderBy: [
       ...(filter === "folj-upp"
         ? [{ foljUppDatum: { sort: "asc" as const, nulls: "last" as const } }]
         : []),
-      { skapad: "desc" as const },
-      { id: "desc" as const },
+      { skapad: riktning },
+      { id: riktning },
     ],
     take: JOBS_PER_PAGE + 1,
     ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
