@@ -4,36 +4,7 @@ Personal job, customer, and invoice log for a one-person plumbing/HVAC (VVS) bus
 
 ## Screenshots
 
-<table>
-  <tr>
-    <td align="center" width="33%">
-      <img src="public/mockup/startsida.png" alt="Home page" width="100%" /><br />
-      <sub>Home page</sub>
-    </td>
-    <td align="center" width="33%">
-      <img src="public/mockup/minajobb.png" alt="My jobs" width="100%" /><br />
-      <sub>My jobs</sub>
-    </td>
-    <td align="center" width="33%">
-      <img src="public/mockup/oversikt.png" alt="Job overview" width="100%" /><br />
-      <sub>Job overview</sub>
-    </td>
-  </tr>
-  <tr>
-    <td align="center" width="33%">
-      <img src="public/mockup/kunder.png" alt="Customer register" width="100%" /><br />
-      <sub>Customer register</sub>
-    </td>
-    <td align="center" width="33%">
-      <img src="public/mockup/foretag.png" alt="Company details" width="100%" /><br />
-      <sub>Company details</sub>
-    </td>
-    <td align="center" width="33%">
-      <img src="public/mockup/faktura.png" alt="Invoice" width="100%" /><br />
-      <sub>Invoice</sub>
-    </td>
-  </tr>
-</table>
+
 
 ## Features
 
