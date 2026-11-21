@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef } from "react";
+import { useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import {
   FormProvider,
@@ -59,7 +60,10 @@ import {
   forstaFormularFel,
   tomtBlirInget,
   tomtBlirNoll,
+  tomtBlirFel,
+  decimalFalt,
   useScrollaTillForstaFel,
+  FormKnappar,
 } from "@/components/minasidor/formular";
 import KundValjare from "@/components/minasidor/kund-valjare";
 import {
@@ -77,6 +81,8 @@ interface Props {
   customers: Customer[];
   /** Företagets standardpåslag i procent för nya artikelrader */
   materialPaslag?: number;
+  /** Vart Avbryt leder – en fast sida, så att det fungerar utan historik */
+  avbrytHref?: string;
 }
 
 const tomDefaults: Omit<OffertInput, "offertdatum" | "giltigTill"> = {
@@ -105,9 +111,16 @@ export default function OffertForm({
   defaultValues,
   submitLabel,
   isPending = false,
-  customers,
+  customers: kunderFranServern,
   materialPaslag = 0,
+  avbrytHref = "/mina-sidor/offerter",
 }: Props) {
+  // Kunder som skapas i formuläret ("Skapa ny kund") läggs till här
+  const [nyaKunder, setNyaKunder] = useState<Customer[]>([]);
+  const customers = useMemo(
+    () => [...kunderFranServern, ...nyaKunder],
+    [kunderFranServern, nyaKunder],
+  );
   const form = useForm<OffertInput>({
     resolver: zodResolver(offertSchema) as Resolver<OffertInput>,
     defaultValues: {
@@ -126,7 +139,7 @@ export default function OffertForm({
     handleSubmit,
     control,
     setValue,
-    formState: { errors, submitCount },
+    formState: { errors, submitCount, isDirty },
   } = form;
 
   const formRef = useRef<HTMLFormElement>(null);
@@ -139,15 +152,19 @@ export default function OffertForm({
   }
 
   const live = useWatch({ control }) as Partial<OffertInput>;
+  const valdKund = customers.find((c) => c.id === live.customerId) ?? null;
   // Samma beräkning som fakturan, så att summeringen här stämmer med
   // utskriften av offerten
   const pris = beräknaFaktura(
-    offertPrisunderlag({ ...tomDefaults, ...live } as OffertInput),
+    offertPrisunderlag({
+      ...tomDefaults,
+      ...live,
+      customer: valdKund,
+    } as OffertInput & { customer: Customer | null }),
   );
   const summering = pris.summary;
   const harFastPris = live.fastPris != null;
 
-  const valdKund = customers.find((c) => c.id === live.customerId) ?? null;
   // ROT gäller bara privatpersoner. Servern stoppar det också.
   const rotForForetag =
     (live.rotAvdrag ?? false) && valdKund?.typ === "foretag";
@@ -183,6 +200,13 @@ export default function OffertForm({
                   shouldValidate: submitCount > 0,
                 })
               }
+              onNyKund={(kund) => {
+                setNyaKunder((prev) => [...prev, kund]);
+                setValue("customerId", kund.id, {
+                  shouldDirty: true,
+                  shouldValidate: submitCount > 0,
+                });
+              }}
               fel={errors.customerId?.message}
             />
           </FormSubsection>
@@ -243,9 +267,7 @@ export default function OffertForm({
                 error={errors.timpris?.message}
               >
                 <Input
-                  type="number"
-                  step="50"
-                  min="0"
+                  {...decimalFalt}
                   {...register("timpris", tomtBlirNoll)}
                   placeholder="t.ex. 950"
                 />
@@ -256,9 +278,7 @@ export default function OffertForm({
                 error={errors.beraknadeTimmar?.message}
               >
                 <Input
-                  type="number"
-                  step="0.5"
-                  min="0"
+                  {...decimalFalt}
                   {...register("beraknadeTimmar", tomtBlirNoll)}
                   placeholder="t.ex. 8"
                 />
@@ -269,9 +289,7 @@ export default function OffertForm({
                 error={errors.milersattning?.message}
               >
                 <Input
-                  type="number"
-                  step="0.5"
-                  min="0"
+                  {...decimalFalt}
                   {...register("milersattning", tomtBlirNoll)}
                   placeholder="t.ex. 25"
                 />
@@ -282,9 +300,7 @@ export default function OffertForm({
                 error={errors.beraknadStracka?.message}
               >
                 <Input
-                  type="number"
-                  step="1"
-                  min="0"
+                  {...decimalFalt}
                   {...register("beraknadStracka", tomtBlirNoll)}
                   placeholder="t.ex. 40"
                 />
@@ -320,10 +336,8 @@ export default function OffertForm({
                     error={errors.fastPris?.message}
                   >
                     <Input
-                      type="number"
-                      step="100"
-                      min="0"
-                      {...register("fastPris", { valueAsNumber: true })}
+                      {...decimalFalt}
+                      {...register("fastPris", tomtBlirFel)}
                       placeholder="t.ex. 15000"
                     />
                   </Field>
@@ -333,9 +347,7 @@ export default function OffertForm({
                     error={errors.fastPrisArbete?.message}
                   >
                     <Input
-                      type="number"
-                      step="100"
-                      min="0"
+                      {...decimalFalt}
                       {...register("fastPrisArbete", tomtBlirInget)}
                       placeholder="t.ex. 6000"
                     />
@@ -461,7 +473,14 @@ export default function OffertForm({
                 value={kronor(pris.exklMoms)}
               />
             )}
-            <SumRow label={`Moms ${MOMS_PROCENT} %`} value={kronor(pris.moms)} />
+            <SumRow
+              label={
+                pris.omvandMoms
+                  ? "Moms 0 % (omvänd byggmoms – kunden redovisar momsen)"
+                  : `Moms ${MOMS_PROCENT} %`
+              }
+              value={kronor(pris.moms)}
+            />
             {pris.rotAvdrag > 0 && (
               <SumRow
                 label={`Preliminärt ROT-avdrag ${ROT_PROCENT} % av ${kronor(pris.rotUnderlag)} arbete inkl. moms`}
@@ -488,11 +507,23 @@ export default function OffertForm({
           </div>
         </FormSection>
 
-        <div className="flex justify-end">
+        <FormKnappar>
+          <Button variant="outline" size="lg" asChild>
+            <Link
+              href={avbrytHref}
+              onClick={(e) => {
+                if (isDirty && !window.confirm("Vill du lämna utan att spara?")) {
+                  e.preventDefault();
+                }
+              }}
+            >
+              Avbryt
+            </Link>
+          </Button>
           <Button type="submit" size="lg" disabled={isPending}>
             {isPending ? "Sparar..." : submitLabel}
           </Button>
-        </div>
+        </FormKnappar>
       </form>
     </FormProvider>
   );

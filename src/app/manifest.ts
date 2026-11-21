@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Skeningevvs-loggen",
     short_name: "Skeninge VVS",
-    description: "Personlig loggbok",
+    description: "Jobb, kunder, offerter och fakturor för Skeninge VVS",
     start_url: "/mina-sidor",
     display: "standalone",
     background_color: "#ffffff",

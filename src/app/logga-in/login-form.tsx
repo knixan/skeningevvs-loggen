@@ -54,7 +54,7 @@ export function LoginForm() {
     <Card className="w-full max-w-md rounded-2xl shadow-xs">
           <Image
                 src="/skeningevvs-faktura-logga.png"
-                alt="KnegarLoggen"
+                alt="Skeninge VVS logotyp"
                 width={300}
                 height={300}
                 className="h-48 w-48 object-contain"

@@ -1,5 +1,6 @@
 "use client";
 import Image from "next/image";
+import Link from "next/link";
 import * as React from "react";
 import { toast } from "sonner";
 import {
@@ -31,6 +32,7 @@ import {
   ImagePlus,
   Calculator,
   X,
+  FileCheck,
 } from "lucide-react";
 
 import {
@@ -40,12 +42,16 @@ import {
   beräknaPaslag,
   formateraKr,
   formateraTal,
+  jobbPrisunderlag,
   MOMS_PROCENT,
   ROT_PROCENT,
   ROT_BARA_PRIVAT,
+  rotTakVarning,
+  rotUppgifterSomSaknas,
   type Customer,
 } from "@/lib/job-schema";
 import { deleteUploadedImage } from "@/lib/job-actions";
+import { anropaAction } from "@/lib/anropa-action";
 import { idag } from "@/lib/datum";
 import { useUploadThing } from "@/lib/uploadthing-client";
 import { useState, useRef } from "react";
@@ -58,6 +64,7 @@ import { Separator } from "@/components/ui/separator";
 import {
   Felmeddelande,
   Field,
+  FormKnappar,
   FormSection,
   FormSubsection,
   SekundarKnapp,
@@ -66,9 +73,12 @@ import {
   forstaFormularFel,
   tomtBlirInget,
   tomtBlirNoll,
+  tomtBlirFel,
+  decimalFalt,
   useScrollaTillForstaFel,
 } from "@/components/minasidor/formular";
 import KundValjare from "@/components/minasidor/kund-valjare";
+import { BildVisare } from "@/components/minasidor/bild-visare";
 import {
   ArtiklarFalt,
   OvrigaKostnaderFalt,
@@ -82,6 +92,12 @@ interface Props {
   customers?: Customer[];
   /** Företagets standardpåslag i procent för nya artikelrader */
   materialPaslag?: number;
+  /** Vart Avbryt leder – en fast sida, så att det fungerar utan historik */
+  avbrytHref: string;
+  /** Numret på jobbets gällande, utfärdade faktura – låser Fakturerat */
+  utfardadFaktura?: number | null;
+  /** ROT (kr) som varje kund redan fått på andra fakturor i år – för taket */
+  rotIArPerKund?: Record<string, number>;
 }
 
 const tomDefaults: JobInput = {
@@ -116,9 +132,20 @@ export default function JobForm({
   defaultValues,
   submitLabel = "Spara jobb",
   isPending = false,
-  customers = [],
+  customers: kunderFranServern = [],
   materialPaslag = 0,
+  avbrytHref,
+  utfardadFaktura = null,
+  rotIArPerKund = {},
 }: Props) {
+  // Kunder som skapas i formuläret läggs till här, så att de kan väljas
+  // direkt utan att sidan laddas om
+  const [nyaKunder, setNyaKunder] = useState<Customer[]>([]);
+  const customers = React.useMemo(
+    () => [...kunderFranServern, ...nyaKunder],
+    [kunderFranServern, nyaKunder],
+  );
+
   const form = useForm<JobInput>({
     resolver: zodResolver(jobSchema) as Resolver<JobInput>,
     defaultValues: {
@@ -137,7 +164,7 @@ export default function JobForm({
     handleSubmit,
     control,
     setValue,
-    formState: { errors, submitCount },
+    formState: { errors, submitCount, isDirty },
   } = form;
 
   const formRef = useRef<HTMLFormElement>(null);
@@ -153,14 +180,29 @@ export default function JobForm({
   const arbetstider = useFieldArray({ control, name: "arbetstider" });
 
   const live = useWatch({ control }) as Partial<JobInput>;
+  const valdKund = customers.find((c) => c.id === live.customerId) ?? null;
   // Samma beräkning som fakturan, så att summeringen här stämmer med den
-  const faktura = beräknaFaktura({ ...tomDefaults, ...live } as JobInput);
+  const faktura = beräknaFaktura(
+    jobbPrisunderlag({
+      ...tomDefaults,
+      ...live,
+      customer: valdKund,
+    } as JobInput & { customer: Customer | null }),
+  );
   const summering = faktura.summary;
 
-  const valdKund = customers.find((c) => c.id === live.customerId) ?? null;
   // ROT gäller bara privatpersoner. Servern stoppar det också.
   const rotForForetag =
     (live.rotAvdrag ?? false) && valdKund?.typ === "foretag";
+  // Det Skatteverket kräver – fakturan kan inte utfärdas utan det
+  const rotSaknas =
+    live.rotAvdrag && valdKund?.typ === "privat"
+      ? rotUppgifterSomSaknas(valdKund)
+      : [];
+  const rotTak =
+    live.rotAvdrag && valdKund
+      ? rotTakVarning(rotIArPerKund[valdKund.id] ?? 0, faktura.rotAvdrag)
+      : null;
 
   // Bilder
   const [bilder, setBilder] = useState<{ url: string; key: string }[]>(
@@ -207,7 +249,7 @@ export default function JobForm({
     // städning, så den raderas direkt.
     if (persistedBildKeysRef.current.has(key)) return;
 
-    const result = await deleteUploadedImage(key);
+    const result = await anropaAction(() => deleteUploadedImage(key));
     if (!result.ok) {
       toast.error("Kunde inte radera bilden från lagringen.");
     }
@@ -240,6 +282,10 @@ export default function JobForm({
             customers={customers}
             valdId={live.customerId}
             onValj={(id) => setValue("customerId", id, { shouldDirty: true })}
+            onNyKund={(kund) => {
+              setNyaKunder((prev) => [...prev, kund]);
+              setValue("customerId", kund.id, { shouldDirty: true });
+            }}
           />
         </FormSubsection>
 
@@ -274,17 +320,23 @@ export default function JobForm({
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-2">
                 {bilder.map((bild) => (
                   <div key={bild.key} className="relative group aspect-square">
-                    <Image
-                      src={bild.url}
-                      alt="Jobbild"
-                      fill
-                      sizes="(max-width: 640px) 33vw, 200px"
-                      className="object-cover rounded-lg cursor-pointer"
-                      onClick={() => setValdBild(bild.url)}
-                    />
                     <button
                       type="button"
-                      className="absolute top-1 right-1 rounded-full bg-black/60 p-1 text-white hover:bg-black/80"
+                      className="absolute inset-0 overflow-hidden rounded-lg"
+                      onClick={() => setValdBild(bild.url)}
+                      aria-label="Visa bilden förstorad"
+                    >
+                      <Image
+                        src={bild.url}
+                        alt="Jobbild"
+                        fill
+                        sizes="(max-width: 640px) 33vw, 200px"
+                        className="object-cover"
+                      />
+                    </button>
+                    <button
+                      type="button"
+                      className="absolute top-1 right-1 rounded-full bg-black/60 p-2 text-white hover:bg-black/80"
                       onClick={(e) => {
                         e.stopPropagation();
                         taBortBild(bild.key);
@@ -349,9 +401,7 @@ export default function JobForm({
                   Timmar
                 </Label>
                 <Input
-                  type="number"
-                  step="0.25"
-                  min="0"
+                  {...decimalFalt}
                   {...register(`arbetstider.${i}.timmar`, tomtBlirNoll)}
                   placeholder="t.ex. 7.5"
                 />
@@ -414,9 +464,7 @@ export default function JobForm({
                   Sträcka (km)
                 </Label>
                 <Input
-                  type="number"
-                  step="0.1"
-                  min="0"
+                  {...decimalFalt}
                   {...register(`resor.${i}.stracka`, tomtBlirNoll)}
                   placeholder="0"
                 />
@@ -472,9 +520,7 @@ export default function JobForm({
               error={errors.timpris?.message}
             >
               <Input
-                type="number"
-                step="50"
-                min="0"
+                {...decimalFalt}
                 {...register("timpris", tomtBlirNoll)}
                 placeholder="t.ex. 950"
               />
@@ -485,9 +531,7 @@ export default function JobForm({
               error={errors.milersattning?.message}
             >
               <Input
-                type="number"
-                step="0.5"
-                min="0"
+                {...decimalFalt}
                 {...register("milersattning", tomtBlirNoll)}
                 placeholder="t.ex. 25"
               />
@@ -517,10 +561,8 @@ export default function JobForm({
                   error={errors.fastPris?.message}
                 >
                   <Input
-                    type="number"
-                    step="100"
-                    min="0"
-                    {...register("fastPris", { valueAsNumber: true })}
+                    {...decimalFalt}
+                    {...register("fastPris", tomtBlirFel)}
                     placeholder="t.ex. 15000"
                   />
                 </Field>
@@ -530,9 +572,7 @@ export default function JobForm({
                   error={errors.fastPrisArbete?.message}
                 >
                   <Input
-                    type="number"
-                    step="100"
-                    min="0"
+                    {...decimalFalt}
                     {...register("fastPrisArbete", tomtBlirInget)}
                     placeholder="t.ex. 6000"
                   />
@@ -627,10 +667,35 @@ export default function JobForm({
               }
             />
             <Felmeddelande fel={rotForForetag ? ROT_BARA_PRIVAT : undefined} />
+            {rotSaknas.length > 0 && (
+              <p className="flex items-start gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+                <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                Fakturan kan inte utfärdas förrän kunden har{" "}
+                {rotSaknas.join(" och ")} i kundregistret.
+              </p>
+            )}
+            {rotTak && (
+              <p className="flex items-start gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+                <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                {rotTak}
+              </p>
+            )}
             <ToggleRow
               id="fakturerat"
               label="Fakturerat"
-              checked={live.fakturerat ?? false}
+              // En utfärdad faktura kan bara tas ut med en kreditfaktura –
+              // servern sparar alltid fakturerat då
+              checked={utfardadFaktura != null || (live.fakturerat ?? false)}
+              disabled={utfardadFaktura != null}
+              hjalptext={
+                utfardadFaktura != null ? (
+                  <span className="inline-flex items-center gap-1">
+                    <FileCheck className="h-3 w-3" />
+                    Faktura {utfardadFaktura} är utfärdad. Kreditera den på
+                    fakturasidan om den ska tas bort.
+                  </span>
+                ) : undefined
+              }
               onChange={(v) =>
                 setValue("fakturerat", v, { shouldDirty: true })
               }
@@ -716,7 +781,14 @@ export default function JobForm({
               value={kronor(faktura.exklMoms)}
             />
           )}
-          <SumRow label={`Moms ${MOMS_PROCENT} %`} value={kronor(faktura.moms)} />
+          <SumRow
+            label={
+              faktura.omvandMoms
+                ? "Moms 0 % (omvänd byggmoms – kunden redovisar momsen)"
+                : `Moms ${MOMS_PROCENT} %`
+            }
+            value={kronor(faktura.moms)}
+          />
           {faktura.rotAvdrag > 0 && (
             <SumRow
               label={`ROT-avdrag ${ROT_PROCENT} % av ${kronor(faktura.rotUnderlag)} arbete inkl. moms`}
@@ -735,37 +807,25 @@ export default function JobForm({
         </div>
       </FormSection>
 
-      <div className="flex justify-end">
-        <Button type="submit" size="lg" disabled={isPending}>
+      <FormKnappar>
+        <Button variant="outline" size="lg" asChild>
+          <Link
+            href={avbrytHref}
+            onClick={(e) => {
+              if (isDirty && !window.confirm("Vill du lämna utan att spara?")) {
+                e.preventDefault();
+              }
+            }}
+          >
+            Avbryt
+          </Link>
+        </Button>
+        <Button type="submit" size="lg" disabled={isPending || laddarUpp}>
           {isPending ? "Sparar..." : submitLabel}
         </Button>
-      </div>
+      </FormKnappar>
 
-      {valdBild && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-          onClick={() => setValdBild(null)}
-        >
-          <div className="relative max-w-3xl w-full max-h-[90vh] aspect-auto">
-            <button
-              type="button"
-              className="absolute -top-10 right-0 text-white"
-              onClick={() => setValdBild(null)}
-              aria-label="Stäng bild"
-            >
-              <X className="h-6 w-6" />
-            </button>
-            <Image
-              src={valdBild}
-              alt="Förstorad bild"
-              width={1200}
-              height={900}
-              className="object-contain w-full h-full rounded-md"
-              onClick={(e) => e.stopPropagation()}
-            />
-          </div>
-        </div>
-      )}
+      <BildVisare url={valdBild} onStang={() => setValdBild(null)} />
     </form>
     </FormProvider>
   );

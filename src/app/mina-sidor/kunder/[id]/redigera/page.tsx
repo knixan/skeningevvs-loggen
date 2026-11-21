@@ -1,8 +1,9 @@
 import { Suspense } from "react";
-import { headers } from "next/headers";
 import { redirect, notFound } from "next/navigation";
-import { auth } from "@/lib/auth";
 import { getCustomer } from "@/lib/queries";
+import { getSession } from "@/lib/server-hjalp";
+import { kundensNamn } from "@/lib/job-schema";
+import { Sida, SidHuvud, SidLaddar } from "@/components/minasidor/sida";
 import CustomerForm from "@/components/minasidor/kunder/customer-form";
 
 export default function RedigeraKundPage({
@@ -11,13 +12,11 @@ export default function RedigeraKundPage({
   params: Promise<{ id: string }>;
 }) {
   return (
-    <main className="container mx-auto max-w-3xl px-4 py-8">
-      <Suspense
-        fallback={<div className="animate-pulse h-8 w-48 bg-muted rounded" />}
-      >
+    <Sida>
+      <Suspense fallback={<SidLaddar />}>
         <RedigeraKundInnehall params={params} />
       </Suspense>
-    </main>
+    </Sida>
   );
 }
 
@@ -26,7 +25,7 @@ async function RedigeraKundInnehall({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getSession();
   if (!session?.user) redirect("/logga-in");
 
   const { id } = await params;
@@ -35,14 +34,11 @@ async function RedigeraKundInnehall({
 
   return (
     <>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">Redigera kund</h1>
-        <p className="text-sm text-muted-foreground">
-          {customer.typ === "foretag" && customer.foretagsnamn
-            ? customer.foretagsnamn
-            : customer.namn}
-        </p>
-      </div>
+      <SidHuvud
+        titel="Redigera kund"
+        beskrivning={kundensNamn(customer)}
+        tillbaka={{ href: "/mina-sidor/kunder", text: "Kundregister" }}
+      />
       <CustomerForm mode="edit" defaultValues={{ ...customer, id }} />
     </>
   );

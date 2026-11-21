@@ -1,27 +1,27 @@
 import { Suspense } from "react";
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/server-hjalp";
 import { idagISverige, laggTillDagar } from "@/lib/datum";
 import { OFFERT_GILTIG_DAGAR } from "@/lib/job-schema";
 import { getCustomers, getSenastePriser } from "@/lib/queries";
 import { prisma } from "@/lib/prisma";
+import { Sida, SidHuvud, SidLaddar } from "@/components/minasidor/sida";
 import NyOffertKlient from "@/components/minasidor/offert/ny-offert-klient";
 
 export default function NyOffertPage() {
   return (
-    <main className="container mx-auto px-4 py-8 max-w-3xl">
+    <Sida>
       <Suspense
-        fallback={<div className="animate-pulse h-8 w-48 bg-muted rounded" />}
+        fallback={<SidLaddar />}
       >
         <NyOffertInnehall />
       </Suspense>
-    </main>
+    </Sida>
   );
 }
 
 async function NyOffertInnehall() {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getSession();
   if (!session?.user) redirect("/logga-in");
 
   const [customers, company, priser] = await Promise.all([
@@ -38,7 +38,10 @@ async function NyOffertInnehall() {
 
   return (
     <>
-      <h1 className="text-2xl font-bold mb-6">Ny offert</h1>
+      <SidHuvud
+        titel="Ny offert"
+        tillbaka={{ href: "/mina-sidor/offerter", text: "Offerter" }}
+      />
       <NyOffertKlient
         customers={customers}
         materialPaslag={company?.materialPaslag ?? 0}

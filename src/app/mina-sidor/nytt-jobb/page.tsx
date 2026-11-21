@@ -1,41 +1,41 @@
 import { Suspense } from "react";
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
-import { getCustomers } from "@/lib/queries";
-import { prisma } from "@/lib/prisma";
+import { idagISverige } from "@/lib/datum";
+import { getCustomers, getRotIArPerKund } from "@/lib/queries";
+import { getSession, inloggatForetag } from "@/lib/server-hjalp";
+import { Sida, SidHuvud, SidLaddar } from "@/components/minasidor/sida";
 import NyttJobbClient from "@/components/minasidor/jobb/nytt-jobb-client";
 
 export default function NyttJobbPage() {
   return (
-    <main className="container mx-auto px-4 py-8 max-w-3xl">
-      <Suspense
-        fallback={<div className="animate-pulse h-8 w-48 bg-muted rounded" />}
-      >
+    <Sida>
+      <Suspense fallback={<SidLaddar />}>
         <NyttJobbInnehall />
       </Suspense>
-    </main>
+    </Sida>
   );
 }
 
 async function NyttJobbInnehall() {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getSession();
   if (!session?.user) redirect("/logga-in");
 
-  const [customers, company] = await Promise.all([
+  const [customers, company, rotIArPerKund] = await Promise.all([
     getCustomers(),
-    prisma.company.findFirst({
-      where: { ownerId: session.user.id },
-      select: { materialPaslag: true },
-    }),
+    inloggatForetag(),
+    getRotIArPerKund(Number(idagISverige().slice(0, 4))),
   ]);
 
   return (
     <>
-      <h1 className="text-2xl font-bold mb-6">Nytt jobb</h1>
+      <SidHuvud
+        titel="Nytt jobb"
+        tillbaka={{ href: "/mina-sidor", text: "Mina jobb" }}
+      />
       <NyttJobbClient
         customers={customers}
         materialPaslag={company?.materialPaslag ?? 0}
+        rotIArPerKund={rotIArPerKund}
       />
     </>
   );

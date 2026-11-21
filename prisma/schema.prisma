@@ -127,6 +127,7 @@ model Company {
   fakturor        Faktura[]
   offerter        Offert[]
   ahlsellArtiklar AhlsellArtikel[]
+  uppladdningar   Uppladdning[]
 
   @@map("company")
 }
@@ -158,6 +159,14 @@ model Customer {
   fastighetsbeteckning String @default("")
   lagenhetsnummer      String @default("")
   bostadsrattsforening String @default("")
+  // Föreningens organisationsnummer – Skatteverket kräver det för ROT på en
+  // bostadsrätt (namnet räcker inte)
+  brfOrgNummer         String @default("")
+
+  // Omvänd byggmoms: företagskund som själv säljer byggtjänster. Fakturan
+  // blir utan moms och ska ha kundens momsregistreringsnummer.
+  omvandByggmoms Boolean @default(false)
+  momsNummer     String  @default("")
 
   company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   jobs     Job[]
@@ -213,7 +222,9 @@ model Job {
   arbetspass      WorkSession[]
   images          JobImage[]
   ovrigaKostnader OvrigKostnad[]
-  faktura         Faktura?
+  // Utfärdade fakturor och kreditfakturor. Högst en är gällande: den senaste
+  // vanliga fakturan som inte är krediterad.
+  fakturor        Faktura[]
   // Offerten som jobbet skapades från ("Gör om till jobb")
   offert          Offert?
 
@@ -230,13 +241,20 @@ model Job {
 // En utfärdad faktura, sparad precis som den såg ut när den utfärdades.
 // Utskrift och PDF läser härifrån, så ändringar i jobbet, kunden eller
 // företaget efteråt påverkar inte fakturan (bokföringslagen). Skrivs bara av
-// utfardaFaktura och ändras aldrig.
+// utfardaFaktura eller krediteraFaktura och ändras aldrig.
+//
+// En kreditfaktura är en egen rad med eget nummer och negativa summor, som
+// pekar på fakturan den krediterar (krediterarId). Ett jobb kan därför ha
+// flera fakturor, men bara en gällande.
 model Faktura {
   id            String   @id @default(cuid())
   companyId     String
   // Tas jobbet eller kunden bort finns fakturan kvar (SetNull)
-  jobId         String?  @unique
+  jobId         String?
   customerId    String?
+  // Satt på en kreditfaktura: fakturan som krediteras. Unikt – en faktura
+  // kan bara krediteras en gång.
+  krediterarId  String?  @unique
   fakturanummer Int
   fakturadatum  DateTime @db.Date
   forfallodatum DateTime @db.Date
@@ -251,12 +269,15 @@ model Faktura {
   // Allt som står på fakturan – FakturaData i lib/faktura.ts
   innehall Json
 
-  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  job      Job?      @relation(fields: [jobId], references: [id], onDelete: SetNull)
-  customer Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  company      Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  job          Job?      @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  customer     Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  krediterar   Faktura?  @relation("Kreditfaktura", fields: [krediterarId], references: [id], onDelete: NoAction)
+  krediteradAv Faktura?  @relation("Kreditfaktura")
 
   @@unique([companyId, fakturanummer])
   @@index([companyId, fakturadatum])
+  @@index([jobId])
   @@index([customerId])
   @@map("faktura")
 }
@@ -414,6 +435,27 @@ model WorkSession {
 
   @@index([jobId])
   @@map("work_session")
+}
+
+// Varje fil som laddats upp till UploadThing, registrerad i onUploadComplete
+// (lib/uploadthing.ts). Bara nycklar härifrån som tillhör företaget får
+// sparas på ett jobb eller som logotyp, eller raderas. `anvand` = sparad på
+// ett jobb eller som logotyp. Osparade äldre än ett dygn städas bort av
+// /api/cron/stada-uppladdningar.
+model Uppladdning {
+  key       String   @id
+  companyId String
+  url       String
+  // "jobbild" | "logotyp"
+  typ       String
+  anvand    Boolean  @default(false)
+  skapad    DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([anvand, skapad])
+  @@map("uppladdning")
 }
 
 model JobImage {

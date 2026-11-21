@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { KeyRound, TriangleAlert } from "lucide-react";
+import { Download, KeyRound, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, FormSection } from "@/components/minasidor/formular";
@@ -16,11 +16,51 @@ export default function InstallningarKlient({
   ahlsell: AhlsellStatus;
 }) {
   return (
-    <div className="space-y-6 max-w-xl">
+    <div className="space-y-6">
       <AhlsellPrislista status={ahlsell} />
+      <ExportSection />
       <BytLosenordForm />
       <FarligZonSection />
     </div>
+  );
+}
+
+/** Export inför bokslut, revision eller byte av system. */
+function ExportSection() {
+  const ar = new Date().getFullYear();
+  return (
+    <FormSection
+      icon={Download}
+      title="Exportera"
+      description="Fakturor och kundregister som CSV-filer, t.ex. inför bokslut eller till revisorn. Fakturorna finns också som PDF under Fakturor."
+    >
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outline" size="sm" asChild>
+          <a href={`/api/export/fakturor?ar=${ar}`} download>
+            <Download className="h-4 w-4" />
+            Fakturor {ar}
+          </a>
+        </Button>
+        <Button variant="outline" size="sm" asChild>
+          <a href={`/api/export/fakturor?ar=${ar - 1}`} download>
+            <Download className="h-4 w-4" />
+            Fakturor {ar - 1}
+          </a>
+        </Button>
+        <Button variant="outline" size="sm" asChild>
+          <a href="/api/export/fakturor?ar=alla" download>
+            <Download className="h-4 w-4" />
+            Alla fakturor
+          </a>
+        </Button>
+        <Button variant="outline" size="sm" asChild>
+          <a href="/api/export/kunder" download>
+            <Download className="h-4 w-4" />
+            Kundregister
+          </a>
+        </Button>
+      </div>
+    </FormSection>
   );
 }
 

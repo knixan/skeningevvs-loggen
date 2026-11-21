@@ -38,6 +38,8 @@ export type OffertData = {
   };
   kund: Mottagare | null;
   rotAvdrag: boolean;
+  /** Omvänd byggmoms – ingen moms, köparen redovisar */
+  omvandMoms: boolean;
   fastPris: boolean;
   /** Fast pris där arbetsdelen är angiven – visas som "varav arbetskostnad" */
   visaArbetskostnad: boolean;
@@ -105,7 +107,8 @@ export function skapaOffertData(
       momsNummer: foretag.momsNummer,
     },
     kund: mottagare(offert.customer),
-    rotAvdrag: offert.rotAvdrag,
+    rotAvdrag: f.rotAvdrag > 0,
+    omvandMoms: f.omvandMoms,
     fastPris: arFastPris,
     visaArbetskostnad: arFastPris && offert.fastPrisArbete != null,
     beskrivning: offert.beskrivning,

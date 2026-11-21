@@ -257,7 +257,9 @@ export function OffertPdf({
             )}
             <View style={S.summRow}>
               <Text style={[S.summLabel, S.summMuted]}>
-                Moms {satser.momsProcent}%
+                {offert.omvandMoms
+                  ? "Moms 0 % – omvänd betalningsskyldighet"
+                  : `Moms ${satser.momsProcent}%`}
               </Text>
               <Text style={[S.summValue, S.summMuted]}>{kr(summa.moms)}</Text>
             </View>
@@ -312,10 +314,16 @@ export function OffertPdf({
         <Text style={S.giltighet}>
           Offerten gäller till och med {offert.giltigTill}.
         </Text>
-        {saljare.fSkatt && (
+        {(saljare.fSkatt || saljarensMomsNummer(saljare)) && (
           // Inget "✓" – PDF:ens standardtypsnitt har bara tecknen i WinAnsi
           <Text style={S.fskatt}>
-            Godkänd för F-skatt · Momsreg.nr: {saljarensMomsNummer(saljare)}
+            {[
+              saljare.fSkatt && "Godkänd för F-skatt",
+              saljarensMomsNummer(saljare) &&
+                `Momsreg.nr: ${saljarensMomsNummer(saljare)}`,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
           </Text>
         )}
         {offert.rotAvdrag && (

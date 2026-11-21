@@ -1,11 +1,11 @@
 import { Suspense } from "react";
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/server-hjalp";
 import { idagISverige } from "@/lib/datum";
 import { getStatistik, tolkaPeriod } from "@/lib/statistik";
 import { Card, CardContent } from "@/components/ui/card";
+import { Sida, SidHuvud, SidLaddar } from "@/components/minasidor/sida";
 import { StatistikVy } from "@/components/minasidor/statistik/statistik-vy";
 
 export const metadata = { title: "Statistik – Skeningevvs-loggen" };
@@ -16,18 +16,18 @@ type Props = {
 
 export default function StatistikPage({ searchParams }: Props) {
   return (
-    <main className="container mx-auto max-w-5xl px-4 py-8">
+    <Sida bredd="bred">
       <Suspense
-        fallback={<div className="animate-pulse h-8 w-48 bg-muted rounded" />}
+        fallback={<SidLaddar />}
       >
         <StatistikInnehall searchParams={searchParams} />
       </Suspense>
-    </main>
+    </Sida>
   );
 }
 
 async function StatistikInnehall({ searchParams }: Props) {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getSession();
   if (!session?.user) redirect("/logga-in");
 
   // ?ar=2026&manad=3 – ogiltiga värden ger innevarande år
@@ -37,7 +37,7 @@ async function StatistikInnehall({ searchParams }: Props) {
   if (!statistik) {
     return (
       <>
-        <h1 className="mb-6 text-2xl font-bold">Statistik</h1>
+        <SidHuvud titel="Statistik" />
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
             Ingen statistik ännu.{" "}

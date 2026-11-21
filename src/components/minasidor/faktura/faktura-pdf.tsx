@@ -10,6 +10,7 @@ import { formateraAntal } from "@/lib/job-schema";
 import {
   fakturaAPris,
   fakturaKr as kr,
+  formateraPeriod,
   saljarensMomsNummer,
   type FakturaData,
 } from "@/lib/faktura";
@@ -116,6 +117,7 @@ const S = StyleSheet.create({
     marginTop: 8,
   },
   fskatt: { fontSize: 8, color: "#555", marginTop: 6 },
+  omvand: { fontFamily: "Helvetica-Bold", fontSize: 9, marginTop: 6 },
 });
 
 /** Ritar bara upp fakturan – alla belopp är färdigräknade i `faktura`. */
@@ -127,15 +129,39 @@ export function FakturaPdf({
   logoUrl: string;
 }) {
   const { saljare, kund, summa, satser } = faktura;
+  const arKredit = faktura.krediterar != null;
+  const momsNr = saljarensMomsNummer(saljare);
+  // Gamla fakturor sparade personnumret även utan ROT – visa det bara med ROT
+  const visaPersonnummer = faktura.rotAvdrag && kund?.personnummer;
 
-  const fakturaRader: [string, string, boolean?][] = [
-    ["Fakturanummer", String(faktura.fakturanummer ?? "–"), true],
+  type InfoRad = [string, string, boolean?];
+  const fakturaRader: InfoRad[] = [
+    [
+      arKredit ? "Kreditfakturanr" : "Fakturanummer",
+      String(faktura.fakturanummer ?? "–"),
+      true,
+    ],
     ["Fakturadatum", faktura.fakturadatum],
-    ["Förfallodatum", faktura.forfallodatum],
-    [`Betalningsvillkor`, `${saljare.forfallodagar} dagar netto`],
-    ...(saljare.drojsmalsranta > 0
-      ? [[`Dröjsmålsränta`, `${saljare.drojsmalsranta}%`] as [string, string]]
+    ...(faktura.krediterar
+      ? [
+          [
+            "Avser faktura",
+            `${faktura.krediterar.fakturanummer} (${faktura.krediterar.fakturadatum})`,
+          ] as InfoRad,
+        ]
       : []),
+    ...(faktura.utfortPeriod
+      ? [["Utfört", formateraPeriod(faktura.utfortPeriod)] as InfoRad]
+      : []),
+    ...(arKredit
+      ? []
+      : [
+          ["Förfallodatum", faktura.forfallodatum] as InfoRad,
+          [`Betalningsvillkor`, `${saljare.forfallodagar} dagar netto`] as InfoRad,
+          ...(saljare.drojsmalsranta > 0
+            ? [[`Dröjsmålsränta`, `${saljare.drojsmalsranta}%`] as InfoRad]
+            : []),
+        ]),
   ];
 
   return (
@@ -166,7 +192,11 @@ export function FakturaPdf({
 
           <View style={S.fakturaRight}>
             <Text style={S.fakturaTitle}>
-              {faktura.fakturanummer != null ? "FAKTURA" : "FÖRHANDSGRANSKNING"}
+              {faktura.fakturanummer == null
+                ? "FÖRHANDSGRANSKNING"
+                : arKredit
+                  ? "KREDITFAKTURA"
+                  : "FAKTURA"}
             </Text>
             <View style={{ marginTop: 8 }}>
               {fakturaRader.map(([label, value, bold]) => (
@@ -200,8 +230,11 @@ export function FakturaPdf({
           {kund?.telefon ? (
             <Text style={S.kundText}>{kund.telefon}</Text>
           ) : null}
-          {kund?.personnummer ? (
-            <Text style={S.kundSub}>Personnummer: {kund.personnummer}</Text>
+          {kund?.momsNummer ? (
+            <Text style={S.kundSub}>Köparens momsreg.nr: {kund.momsNummer}</Text>
+          ) : null}
+          {visaPersonnummer ? (
+            <Text style={S.kundSub}>Personnummer: {kund?.personnummer}</Text>
           ) : null}
           {faktura.rotAvdrag && kund?.rotBostad ? (
             <Text style={S.kundSub}>ROT-avdrag · {kund.rotBostad}</Text>
@@ -277,18 +310,20 @@ export function FakturaPdf({
             )}
             <View style={S.summRow}>
               <Text style={[S.summLabel, S.summMuted]}>
-                Moms {satser.momsProcent}%
+                {faktura.omvandMoms
+                  ? "Moms 0 % - omvänd betalningsskyldighet"
+                  : `Moms ${satser.momsProcent}%`}
               </Text>
               <Text style={[S.summValue, S.summMuted]}>{kr(summa.moms)}</Text>
             </View>
-            {summa.rotAvdrag > 0 && (
+            {summa.rotAvdrag !== 0 && (
               <View style={S.summRow}>
                 <Text style={[S.summLabel, S.summMuted]}>
                   ROT-avdrag {satser.rotProcent}% (av {kr(summa.rotUnderlag)}{" "}
                   inkl. moms)*
                 </Text>
                 <Text style={[S.summValue, S.summRot]}>
-                  −{kr(summa.rotAvdrag)}
+                  {kr(-summa.rotAvdrag)}
                 </Text>
               </View>
             )}
@@ -301,14 +336,22 @@ export function FakturaPdf({
               </View>
             )}
             <View style={[S.summRow, S.summDivider]}>
-              <Text style={S.summTotalLabel}>Att betala</Text>
+              <Text style={S.summTotalLabel}>
+                {arKredit ? "Att kreditera" : "Att betala"}
+              </Text>
               <Text style={S.summTotalValue}>{kr(summa.attBetala)}</Text>
             </View>
           </View>
         </View>
 
         {/* ── Betalningsuppgifter ── */}
-        {(saljare.bankgiro || saljare.plusgiro || saljare.swish) && (
+        {arKredit ? (
+          <Text style={[S.payText, { marginBottom: 16 }]}>
+            Kreditfakturan tar ut faktura {faktura.krediterar?.fakturanummer}.
+            Har den redan betalats återbetalar vi beloppet.
+          </Text>
+        ) : null}
+        {!arKredit && (saljare.bankgiro || saljare.plusgiro || saljare.swish) && (
           <View style={S.payGrid}>
             <View style={S.payBlock}>
               <Text style={S.payLabel}>Betalningsuppgifter</Text>
@@ -323,8 +366,10 @@ export function FakturaPdf({
               ) : null}
             </View>
             <View style={S.payBlock}>
-              <Text style={S.payLabel}>Meddelande / OCR</Text>
-              <Text style={S.payText}>{faktura.fakturanummer ?? "–"}</Text>
+              <Text style={S.payLabel}>Ange vid betalning</Text>
+              <Text style={S.payText}>
+                Fakturanummer {faktura.fakturanummer ?? "–"}
+              </Text>
             </View>
           </View>
         )}
@@ -333,16 +378,24 @@ export function FakturaPdf({
         {saljare.fakturatext ? (
           <Text style={S.fakturatext}>{saljare.fakturatext}</Text>
         ) : null}
-        {saljare.fSkatt && (
+        {faktura.omvandMoms ? (
+          <Text style={S.omvand}>Omvänd betalningsskyldighet</Text>
+        ) : null}
+        {saljare.fSkatt || momsNr ? (
           <Text style={S.fskatt}>
-            {"✓"} Godkänd för F-skatt · Momsreg.nr:{" "}
-            {saljarensMomsNummer(saljare)}
+            {[
+              saljare.fSkatt && "Godkänd för F-skatt",
+              momsNr && `Momsreg.nr: ${momsNr}`,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
           </Text>
-        )}
+        ) : null}
         {faktura.rotAvdrag && (
           <Text style={S.fskatt}>
-            * ROT-avdrag: Avser {satser.rotProcent}% av arbetskostnad inkl.
-            moms. Hantverkaren ansöker om utbetalning hos Skatteverket.
+            {arKredit
+              ? `* ROT-avdraget på faktura ${faktura.krediterar?.fakturanummer} krediteras.`
+              : `* ROT-avdrag: Avser ${satser.rotProcent}% av arbetskostnad inkl. moms. Hantverkaren ansöker om utbetalning hos Skatteverket.`}
           </Text>
         )}
       </Page>

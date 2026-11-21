@@ -1,49 +1,47 @@
 import { Suspense } from "react";
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Plus } from "lucide-react";
-import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/server-hjalp";
 import { idagISverige } from "@/lib/datum";
 import { getOfferter } from "@/lib/queries";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Sida, SidHuvud, SidLaddar } from "@/components/minasidor/sida";
 import OffertLista from "@/components/minasidor/offert/offert-lista";
 
 export default function OfferterPage() {
   return (
-    <main className="container mx-auto max-w-4xl px-4 py-8">
+    <Sida bredd="normal">
       <Suspense
-        fallback={<div className="animate-pulse h-8 w-48 bg-muted rounded" />}
+        fallback={<SidLaddar />}
       >
         <OfferterInnehall />
       </Suspense>
-    </main>
+    </Sida>
   );
 }
 
 async function OfferterInnehall() {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getSession();
   if (!session?.user) redirect("/logga-in");
 
   const offerter = await getOfferter();
 
   return (
     <>
-      <div className="mb-6 flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold">Offerter</h1>
-          <p className="text-sm text-muted-foreground">
-            {offerter.length} {offerter.length === 1 ? "offert" : "offerter"}
-          </p>
-        </div>
-        <Button asChild>
-          <Link href="/mina-sidor/offerter/ny">
-            <Plus className="h-4 w-4 mr-2" />
-            Ny offert
-          </Link>
-        </Button>
-      </div>
+      <SidHuvud
+        titel="Offerter"
+        beskrivning={`${offerter.length} ${offerter.length === 1 ? "offert" : "offerter"}`}
+        atgard={
+          <Button asChild>
+            <Link href="/mina-sidor/offerter/ny">
+              <Plus className="h-4 w-4" />
+              Ny offert
+            </Link>
+          </Button>
+        }
+      />
 
       {offerter.length === 0 ? (
         <Card>

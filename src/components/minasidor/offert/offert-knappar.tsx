@@ -4,6 +4,7 @@ import { useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { anropaAction } from "@/lib/anropa-action";
 import { Briefcase, Handshake, Trash2 } from "lucide-react";
 import { deleteOffert, skapaJobbFranOffert } from "@/lib/offert-actions";
 import { Button } from "@/components/ui/button";
@@ -48,7 +49,7 @@ export function SkapaJobbKnapp({
 
   function skapaJobb() {
     startTransition(async () => {
-      const result = await skapaJobbFranOffert(offertId);
+      const result = await anropaAction(() => skapaJobbFranOffert(offertId));
       if (result.ok) {
         toast.success(`Jobb skapat från offert ${offertnummer}`);
         router.push(`/mina-sidor/jobb/${result.jobId}/redigera`);
@@ -99,7 +100,7 @@ export function TaBortOffertKnapp({
 
   function taBort() {
     startTransition(async () => {
-      const result = await deleteOffert(offertId);
+      const result = await anropaAction(() => deleteOffert(offertId));
       if (result.ok) {
         toast.success(`Offert ${offertnummer} borttagen`);
         router.refresh();

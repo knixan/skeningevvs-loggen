@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "sonner";
+import { anropaAction } from "@/lib/anropa-action";
 import OffertForm from "@/components/minasidor/offert/offert-form";
 import { updateOffert } from "@/lib/offert-actions";
 import type { Customer, Offert, OffertInput } from "@/lib/job-schema";
@@ -23,7 +24,7 @@ export default function RedigeraOffertKlient({
 
   function handleSubmit(data: OffertInput) {
     startTransition(async () => {
-      const result = await updateOffert(offert.id, data);
+      const result = await anropaAction(() => updateOffert(offert.id, data));
       if (result.ok) {
         toast.success(`Offert ${offert.offertnummer} uppdaterad`);
         router.push("/mina-sidor/offerter");

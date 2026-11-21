@@ -3,9 +3,14 @@ import "server-only";
 import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { idagISverige } from "./datum";
-import { beräknaFaktura, kronorTillOre, kundensNamn } from "./job-schema";
+import {
+  beräknaFaktura,
+  jobbPrisunderlag,
+  kronorTillOre,
+  kundensNamn,
+} from "./job-schema";
 import { prisma } from "./prisma";
-import { JOBB_MED_RADER, mapJob } from "./queries";
+import { GALLANDE_FAKTURA, JOBB_MED_RADER, mapJob } from "./queries";
 import { inloggatForetag } from "./server-hjalp";
 
 // ============================================================
@@ -21,8 +26,10 @@ import { inloggatForetag } from "./server-hjalp";
 //   fakturadatum. Summorna är heltal i ören och summeras i databasen, så de
 //   stämmer exakt mot fakturorna. Ett jobb som bara är markerat som fakturerat
 //   har inget fakturadatum och räknas inte här – det räknas i `fakturaSaknas`.
+//   Kreditfakturor har negativa summor och drar av i den månad de utfärdas.
+//   Antalet fakturor räknar bara vanliga fakturor, inte kreditfakturor.
 // - Obetalt: gäller just nu, inte en period. Fakturerade jobb som inte är
-//   betalda – med utfärdad faktura det sparade beloppet att betala, annars
+//   betalda – med gällande faktura det sparade beloppet att betala, annars
 //   räknat med beräknaFaktura (samma formel som fakturan).
 // - Nya jobb: när jobbet skapades, i svensk tid.
 // - Timmar och km: arbetspassens och resornas datum.
@@ -108,7 +115,7 @@ export async function räknaStatistik(
       obetaltJustNu(db, companyId, idag),
       // Jobb som är fakturerade utan utfärdad faktura saknar fakturadatum
       db.job.count({
-        where: { companyId, fakturerat: true, faktura: { is: null } },
+        where: { companyId, fakturerat: true, fakturor: { none: GALLANDE_FAKTURA } },
       }),
     ]);
 
@@ -185,7 +192,7 @@ async function perManad(
       }[]
     >`
       SELECT EXTRACT(MONTH FROM "fakturadatum")::int AS manad,
-             COUNT(*)::int AS antal,
+             (COUNT(*) FILTER (WHERE "krediterarId" IS NULL))::int AS antal,
              SUM("exklMomsOre")::float8 AS exkl,
              SUM("rotAvdragOre")::float8 AS rot,
              (COUNT(*) FILTER (WHERE "rotAvdragOre" > 0))::int AS medrot
@@ -252,7 +259,7 @@ async function omsattningPerAr(db: Db, companyId: string) {
     { ar: number; antal: number; exkl: number; rot: number }[]
   >`
     SELECT EXTRACT(YEAR FROM "fakturadatum")::int AS ar,
-           COUNT(*)::int AS antal,
+           (COUNT(*) FILTER (WHERE "krediterarId" IS NULL))::int AS antal,
            SUM("exklMomsOre")::float8 AS exkl,
            SUM("rotAvdragOre")::float8 AS rot
     FROM "faktura"
@@ -296,7 +303,7 @@ async function toppKunder(db: Db, companyId: string, { fran, till }: Granser) {
       fakturadatum: { gte: new Date(fran), lt: new Date(till) },
     },
     _sum: { exklMomsOre: true },
-    _count: { _all: true },
+    _count: { krediterarId: true, _all: true },
     orderBy: { _sum: { exklMomsOre: "desc" } },
     take: ANTAL_TOPPKUNDER,
   });
@@ -316,7 +323,8 @@ async function toppKunder(db: Db, companyId: string, { fran, till }: Granser) {
         ? kundensNamn({ ...kund, typ: kund.typ as "privat" | "foretag" })
         : "Borttagen kund",
       omsattningOre: g._sum.exklMomsOre ?? 0,
-      fakturor: g._count._all,
+      // _all räknar alla rader, krediterarId bara kreditfakturorna
+      fakturor: g._count._all - (g._count.krediterarId ?? 0),
     };
   });
 }
@@ -356,8 +364,10 @@ async function jobbPerStatus(db: Db, companyId: string) {
 
 /** Fakturerade jobb som inte är betalda, och hur mycket kunderna ska betala. */
 async function obetaltJustNu(db: Db, companyId: string, idag: string) {
+  // Bara gällande fakturor – en krediterad faktura ska inte betalas
   const obetaldFaktura = {
     companyId,
+    ...GALLANDE_FAKTURA,
     job: { is: { fakturerat: true, betalt: false } },
   } satisfies Prisma.FakturaWhereInput;
 
@@ -375,13 +385,18 @@ async function obetaltJustNu(db: Db, companyId: string, idag: string) {
     }),
     // Utan utfärdad faktura finns inget sparat belopp – det räknas fram
     db.job.findMany({
-      where: { companyId, fakturerat: true, betalt: false, faktura: { is: null } },
+      where: {
+        companyId,
+        fakturerat: true,
+        betalt: false,
+        fakturor: { none: GALLANDE_FAKTURA },
+      },
       include: JOBB_MED_RADER,
     }),
   ]);
 
   const utanFakturaOre = utanFaktura.reduce(
-    (summa, j) => summa + kronorTillOre(beräknaFaktura(mapJob(j)).attBetala),
+    (summa, j) => summa + kronorTillOre(beräknaFaktura(jobbPrisunderlag(mapJob(j))).attBetala),
     0,
   );
 

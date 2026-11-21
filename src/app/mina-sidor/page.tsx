@@ -1,48 +1,65 @@
 import { Suspense } from "react";
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { auth } from "@/lib/auth";
-import { getJobs } from "@/lib/queries";
-import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
+import { getJobbRaknare, getJobs } from "@/lib/queries";
+import { getSession } from "@/lib/server-hjalp";
+import { tolkaJobbFilter, tolkaJobbSok } from "@/lib/jobb-filter";
+import { Button } from "@/components/ui/button";
+import { Sida, SidHuvud, SidLaddar } from "@/components/minasidor/sida";
 import JobDashboard from "@/components/minasidor/jobb/job-dashboard";
 
-export default function MinaSidorPage() {
+type Props = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default function MinaSidorPage({ searchParams }: Props) {
   return (
-    <main className="container mx-auto px-4 py-8">
-      <Suspense
-        fallback={<div className="animate-pulse h-8 w-48 bg-muted rounded" />}
-      >
-        <MinaSidorInnehall />
+    <Sida bredd="bred">
+      <Suspense fallback={<SidLaddar />}>
+        <MinaSidorInnehall searchParams={searchParams} />
       </Suspense>
-    </main>
+    </Sida>
   );
 }
 
-async function MinaSidorInnehall() {
-  const session = await auth.api.getSession({ headers: await headers() });
+async function MinaSidorInnehall({ searchParams }: Props) {
+  const session = await getSession();
   if (!session?.user) redirect("/logga-in");
 
-  const { jobs, nextCursor } = await getJobs();
+  // ?status=fakturerat&sok=berga – filtreras och räknas i databasen
+  const sp = await searchParams;
+  const forsta = (v: string | string[] | undefined) =>
+    Array.isArray(v) ? v[0] : v;
+  const filter = tolkaJobbFilter(forsta(sp.status));
+  const sok = tolkaJobbSok(forsta(sp.sok));
+
+  const [{ jobs, nextCursor }, raknare] = await Promise.all([
+    getJobs({ filter, sok }),
+    getJobbRaknare(sok),
+  ]);
 
   return (
     <>
-      <div className="flex flex-col gap-3 mb-6 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Mina jobb</h1>
-          <p className="text-muted-foreground text-sm">
-            Välkommen, {session.user.name}
-          </p>
-        </div>
-        <Link href="/mina-sidor/nytt-jobb">
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            Nytt jobb
+      <SidHuvud
+        titel="Mina jobb"
+        beskrivning={`Välkommen, ${session.user.name}`}
+        atgard={
+          <Button asChild>
+            <Link href="/mina-sidor/nytt-jobb">
+              <Plus className="h-4 w-4" />
+              Nytt jobb
+            </Link>
           </Button>
-        </Link>
-      </div>
-      <JobDashboard jobs={jobs} nextCursor={nextCursor} />
+        }
+      />
+      <JobDashboard
+        jobs={jobs}
+        nextCursor={nextCursor}
+        filter={filter}
+        sok={sok}
+        raknare={raknare}
+      />
     </>
   );
 }

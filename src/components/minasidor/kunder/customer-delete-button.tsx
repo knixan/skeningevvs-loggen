@@ -3,6 +3,7 @@
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { anropaAction } from "@/lib/anropa-action";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,7 +31,7 @@ export default function CustomerDeleteButton({
 
   function handleDelete() {
     startTransition(async () => {
-      const result = await deleteCustomer(id);
+      const result = await anropaAction(() => deleteCustomer(id));
       if (result.ok) {
         toast.success("Kund borttagen");
         router.refresh();

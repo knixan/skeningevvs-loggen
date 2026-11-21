@@ -155,22 +155,43 @@ export function ToggleRow({
   label,
   checked,
   onChange,
+  disabled,
+  hjalptext,
 }: {
   id: string;
   label: string;
   checked: boolean;
   onChange: (v: boolean) => void;
+  disabled?: boolean;
+  /** Liten text under, t.ex. varför rutan är låst */
+  hjalptext?: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex min-h-9 items-start gap-3">
       <Checkbox
         id={id}
         checked={checked}
+        disabled={disabled}
         onCheckedChange={(v) => onChange(Boolean(v))}
+        className="mt-0.5"
+        aria-describedby={hjalptext ? `${id}-hjalp` : undefined}
       />
-      <Label htmlFor={id} className="font-normal cursor-pointer">
-        {label}
-      </Label>
+      <div className="space-y-0.5">
+        <Label
+          htmlFor={id}
+          className={cn(
+            "font-normal",
+            disabled ? "cursor-not-allowed opacity-70" : "cursor-pointer",
+          )}
+        >
+          {label}
+        </Label>
+        {hjalptext && (
+          <p id={`${id}-hjalp`} className="text-xs text-muted-foreground">
+            {hjalptext}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
@@ -196,15 +217,53 @@ export function SumRow({
   );
 }
 
-// Ett tomt nummerfält ger annars NaN, som stoppar sparningen.
+// Decimaltal skrivs i vanliga textfält med inputMode="decimal" (se
+// decimalFalt), inte type="number". Ett nummerfält i en svensk telefon
+// visar decimalkomma, men webbläsaren kan inte alltid tolka "7,5" – då blev
+// fältet tomt och sparades tyst som 0. Här tolkas både komma och punkt, och
+// något som inte är ett tal blir NaN, så att zod säger "Ange …".
+
+/** "7,5" → 7.5, "1 250" → 1250, "" → `tomt`, "abc" → NaN. */
+export function lasDecimal(v: unknown, tomt: number | undefined) {
+  if (typeof v === "number") return v;
+  const text = String(v ?? "")
+    .replace(/[\s ]/g, "")
+    .replace(",", ".");
+  if (text === "") return tomt;
+  return /^-?\d*\.?\d+$|^-?\d+\.$/.test(text) ? Number(text) : NaN;
+}
+
 /** Tomt fält → 0, t.ex. timpris och priser. */
 export const tomtBlirNoll = {
-  setValueAs: (v: string) => (v === "" ? 0 : Number(v)),
+  setValueAs: (v: unknown) => lasDecimal(v, 0),
 };
 /** Tomt fält → inget värde, för tal som är valfria. */
 export const tomtBlirInget = {
-  setValueAs: (v: string) => (v === "" ? undefined : Number(v)),
+  setValueAs: (v: unknown) => lasDecimal(v, undefined),
 };
+/** Tomt fält → NaN, för tal som måste fyllas i ("Ange …"). */
+export const tomtBlirFel = {
+  setValueAs: (v: unknown) => lasDecimal(v, NaN),
+};
+
+/** Egenskaper för ett decimalfält: sifferknappar med komma på mobilen. */
+export const decimalFalt = {
+  type: "text",
+  inputMode: "decimal",
+  autoComplete: "off",
+} as const;
+
+/**
+ * Spara/Avbryt längst ner i ett formulär. På mobilen ligger raden fast
+ * precis ovanför bottenmenyn, så att Spara alltid går att nå med tummen.
+ */
+export function FormKnappar({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-20 -mx-4 flex items-center justify-end gap-2 border-t bg-background/95 px-4 py-3 backdrop-blur supports-backdrop-filter:bg-background/80 sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:backdrop-blur-none md:bottom-0">
+      {children}
+    </div>
+  );
+}
 
 /** Första felmeddelandet bland formulärets fel, även inne i listor. */
 export function forstaFormularFel(fel: FieldErrors): string | undefined {

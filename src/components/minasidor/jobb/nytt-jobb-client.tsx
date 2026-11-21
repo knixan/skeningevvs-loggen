@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "sonner";
+import { anropaAction } from "@/lib/anropa-action";
 import JobForm from "@/components/minasidor/jobb/job-form";
 import { createJob } from "@/lib/job-actions";
 import type { JobInput, Customer } from "@/lib/job-schema";
@@ -10,9 +11,14 @@ import type { JobInput, Customer } from "@/lib/job-schema";
 interface Props {
   customers: Customer[];
   materialPaslag: number;
+  rotIArPerKund: Record<string, number>;
 }
 
-export default function NyttJobbClient({ customers, materialPaslag }: Props) {
+export default function NyttJobbClient({
+  customers,
+  materialPaslag,
+  rotIArPerKund,
+}: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -21,7 +27,7 @@ export default function NyttJobbClient({ customers, materialPaslag }: Props) {
     bilder: { url: string; key: string }[],
   ) {
     startTransition(async () => {
-      const result = await createJob(data, bilder);
+      const result = await anropaAction(() => createJob(data, bilder));
       if (result.ok) {
         toast.success("Jobb sparat!");
         router.push("/mina-sidor");
@@ -38,6 +44,8 @@ export default function NyttJobbClient({ customers, materialPaslag }: Props) {
       isPending={isPending}
       customers={customers}
       materialPaslag={materialPaslag}
+      rotIArPerKund={rotIArPerKund}
+      avbrytHref="/mina-sidor"
     />
   );
 }

@@ -33,6 +33,8 @@ import {
   FormSubsection,
   SekundarKnapp,
   tomtBlirNoll,
+  tomtBlirFel,
+  decimalFalt,
 } from "@/components/minasidor/formular";
 import AhlsellSok from "@/components/minasidor/jobb/ahlsell-sok";
 
@@ -195,11 +197,9 @@ export function ArtiklarFalt({
                 error={errors.artiklar?.[i]?.antal?.message}
               >
                 <Input
-                  type="number"
-                  step="any"
-                  min="0"
+                  {...decimalFalt}
                   {...register(`artiklar.${i}.antal`, {
-                    valueAsNumber: true,
+                    ...tomtBlirFel,
                   })}
                   placeholder="Antal"
                 />
@@ -211,9 +211,7 @@ export function ArtiklarFalt({
                 error={errors.artiklar?.[i]?.inkopspris?.message}
               >
                 <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
+                  {...decimalFalt}
                   {...register(`artiklar.${i}.inkopspris`, {
                     ...tomtBlirNoll,
                     onChange: () => raknaUtpris(i),
@@ -227,10 +225,9 @@ export function ArtiklarFalt({
                 className="col-span-4 sm:col-span-2"
               >
                 <Input
-                  type="number"
-                  step="any"
+                  {...decimalFalt}
                   {...register(`artiklar.${i}.paslag`, {
-                    valueAsNumber: true,
+                    ...tomtBlirFel,
                     onChange: () => raknaUtpris(i),
                   })}
                   placeholder="%"
@@ -243,9 +240,7 @@ export function ArtiklarFalt({
                 error={errors.artiklar?.[i]?.pris?.message}
               >
                 <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
+                  {...decimalFalt}
                   {...register(`artiklar.${i}.pris`, {
                     ...tomtBlirNoll,
                     onChange: () => raknaPaslag(i),
@@ -338,9 +333,7 @@ export function OvrigaKostnaderFalt() {
           </div>
           <div className="col-span-3 sm:col-span-2 space-y-1">
             <Input
-              type="number"
-              step="0.01"
-              min="0"
+              {...decimalFalt}
               {...register(`ovrigaKostnader.${i}.pris`, tomtBlirNoll)}
               placeholder="0"
             />

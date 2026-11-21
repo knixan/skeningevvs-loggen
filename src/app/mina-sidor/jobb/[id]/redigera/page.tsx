@@ -1,9 +1,22 @@
 import { Suspense } from "react";
-import { headers } from "next/headers";
+import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
-import { auth } from "@/lib/auth";
-import { getJob, getCustomers, getFaktura } from "@/lib/queries";
-import { prisma } from "@/lib/prisma";
+import { FileText } from "lucide-react";
+import { idagISverige } from "@/lib/datum";
+import {
+  getJob,
+  getCustomers,
+  getFaktura,
+  getRotIArPerKund,
+} from "@/lib/queries";
+import { getSession, inloggatForetag } from "@/lib/server-hjalp";
+import { Button } from "@/components/ui/button";
+import {
+  InfoRuta,
+  Sida,
+  SidHuvud,
+  SidLaddar,
+} from "@/components/minasidor/sida";
 import EditJobClient from "@/components/minasidor/jobb/edit-job-client";
 
 export default function RedigeraJobbPage({
@@ -12,13 +25,11 @@ export default function RedigeraJobbPage({
   params: Promise<{ id: string }>;
 }) {
   return (
-    <main className="container mx-auto px-4 py-8 max-w-3xl">
-      <Suspense
-        fallback={<div className="animate-pulse h-8 w-48 bg-muted rounded" />}
-      >
+    <Sida>
+      <Suspense fallback={<SidLaddar />}>
         <RedigeraJobbInnehall params={params} />
       </Suspense>
-    </main>
+    </Sida>
   );
 }
 
@@ -27,35 +38,47 @@ async function RedigeraJobbInnehall({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getSession();
   if (!session?.user) redirect("/logga-in");
 
   const { id } = await params;
-  const [job, customers, company, faktura] = await Promise.all([
+  const [job, customers, company, faktura, rotIArPerKund] = await Promise.all([
     getJob(id),
     getCustomers(),
-    prisma.company.findFirst({
-      where: { ownerId: session.user.id },
-      select: { materialPaslag: true },
-    }),
+    inloggatForetag(),
     getFaktura(id),
+    // Jobbets egna fakturor räknas inte – dess ROT räknas i formuläret
+    getRotIArPerKund(Number(idagISverige().slice(0, 4)), id),
   ]);
 
   if (!job) notFound();
 
   return (
     <>
-      <h1 className="text-2xl font-bold mb-6">Redigera jobb</h1>
+      <SidHuvud
+        titel="Redigera jobb"
+        tillbaka={{ href: "/mina-sidor", text: "Mina jobb" }}
+        atgard={
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/mina-sidor/jobb/${job.id}/skriv-ut`}>
+              <FileText className="h-4 w-4" />
+              {faktura ? `Faktura ${faktura.fakturanummer}` : "Faktura"}
+            </Link>
+          </Button>
+        }
+      />
       {faktura && (
-        <p className="mb-6 rounded-md border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+        <InfoRuta>
           Faktura {faktura.fakturanummer} är utfärdad och sparad. Ändringar
           här påverkar inte fakturan.
-        </p>
+        </InfoRuta>
       )}
       <EditJobClient
         job={job}
         customers={customers}
         materialPaslag={company?.materialPaslag ?? 0}
+        utfardadFaktura={faktura?.fakturanummer ?? null}
+        rotIArPerKund={rotIArPerKund}
       />
     </>
   );

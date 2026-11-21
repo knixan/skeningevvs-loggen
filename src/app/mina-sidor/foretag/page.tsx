@@ -1,25 +1,25 @@
 import { Suspense } from "react";
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/server-hjalp";
 import { companySchema } from "@/lib/job-schema";
 import { getCompanySettings } from "@/lib/queries";
+import { Sida, SidHuvud, SidLaddar } from "@/components/minasidor/sida";
 import CompanySettingsForm from "@/components/minasidor/foretag/company-settings-form";
 
 export default function ForetagsuppgifterPage() {
   return (
-    <main className="container mx-auto max-w-3xl px-4 py-8">
+    <Sida>
       <Suspense
-        fallback={<div className="animate-pulse h-8 w-48 bg-muted rounded" />}
+        fallback={<SidLaddar />}
       >
         <ForetagInnehall />
       </Suspense>
-    </main>
+    </Sida>
   );
 }
 
 async function ForetagInnehall() {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getSession();
   if (!session?.user) redirect("/logga-in");
 
   // Företaget skapas först när något sparas – tills dess visas ett tomt
@@ -33,13 +33,10 @@ async function ForetagInnehall() {
 
   return (
     <>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">Företagsuppgifter</h1>
-        <p className="text-sm text-muted-foreground">
-          Dessa uppgifter används för att skapa professionella fakturor och
-          PDF-underlag.
-        </p>
-      </div>
+      <SidHuvud
+        titel="Företagsuppgifter"
+        beskrivning="Uppgifterna står på fakturor och offerter."
+      />
       <CompanySettingsForm company={company} />
     </>
   );

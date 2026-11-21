@@ -25,7 +25,8 @@ import {
 
 import { useUploadThing } from "@/lib/uploadthing-client";
 import { updateCompanySettings, updateCompanyLogo } from "@/lib/job-actions";
-import { type CompanyInput } from "@/lib/job-schema";
+import { arGiltigtMomsNummer, type CompanyInput } from "@/lib/job-schema";
+import { anropaAction } from "@/lib/anropa-action";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,8 +35,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Field,
+  FormKnappar,
   FormSection,
   SekundarKnapp,
+  decimalFalt,
+  tomtBlirNoll,
 } from "@/components/minasidor/formular";
 
 interface CompanySettings extends CompanyInput {
@@ -86,6 +90,7 @@ export default function CompanySettingsForm({ company }: Props) {
     },
   });
 
+  const momsNummer = useWatch({ control, name: "momsNummer" }) ?? "";
   const fSkattWatch = useWatch({ control, name: "fSkatt" });
   const fSkatt =
     typeof fSkattWatch === "boolean" ? fSkattWatch : company.fSkatt;
@@ -94,33 +99,43 @@ export default function CompanySettingsForm({ company }: Props) {
     const filer = Array.from(e.target.files ?? []);
     if (!filer.length) return;
     setLaddarUppLogga(true);
-    const res = await startUpload(filer);
-    if (res && res[0]) {
-      const ny = { url: res[0].ufsUrl, key: res[0].key };
-      setLogo(ny);
-      const result = await updateCompanyLogo(ny);
-      if (result.ok) {
-        toast.success("Logotyp uppdaterad");
-      } else {
-        toast.error(result.error ?? "Kunde inte spara logotyp");
+    // finally: knappen får aldrig fastna på "Laddar upp..." om något går fel
+    try {
+      const res = await startUpload(filer);
+      if (res && res[0]) {
+        const ny = { url: res[0].ufsUrl, key: res[0].key };
+        const result = await anropaAction(() => updateCompanyLogo(ny));
+        if (result.ok) {
+          setLogo(result.logo ?? ny);
+          toast.success("Logotyp uppdaterad");
+        } else {
+          toast.error(result.error ?? "Kunde inte spara logotyp");
+        }
       }
+    } catch {
+      toast.error("Uppladdningen misslyckades. Försök igen.");
+    } finally {
+      setLaddarUppLogga(false);
+      // Samma fil ska kunna väljas igen
+      e.target.value = "";
     }
-    setLaddarUppLogga(false);
   }
 
   async function taBortLogga() {
+    const forra = logo;
     setLogo(null);
-    const result = await updateCompanyLogo(null);
+    const result = await anropaAction(() => updateCompanyLogo(null));
     if (result.ok) {
       toast.success("Logotyp borttagen");
     } else {
+      setLogo(forra);
       toast.error(result.error ?? "Kunde inte ta bort logotyp");
     }
   }
 
   function onSubmit(data: CompanyInput) {
     startTransition(async () => {
-      const result = await updateCompanySettings(data);
+      const result = await anropaAction(() => updateCompanySettings(data));
       if (result.ok) {
         toast.success("Företagsuppgifter sparade");
       } else {
@@ -241,6 +256,16 @@ export default function CompanySettingsForm({ company }: Props) {
             icon={<Receipt className="h-3.5 w-3.5" />}
           >
             <Input {...register("momsNummer")} placeholder="SE556677889901" />
+            {!momsNummer.trim() ? (
+              <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
+                Krävs för att kunna utfärda fakturor – det ska stå på varje
+                faktura.
+              </p>
+            ) : !arGiltigtMomsNummer(momsNummer) ? (
+              <p className="text-xs text-destructive">
+                Skrivs SE + tio siffror + 01, t.ex. SE556677889901.
+              </p>
+            ) : null}
           </Field>
 
           <div className="flex items-center gap-3 pt-2 sm:col-span-2">
@@ -292,6 +317,7 @@ export default function CompanySettingsForm({ company }: Props) {
             >
               <Input
                 type="number"
+                inputMode="numeric"
                 step="1"
                 min="1"
                 {...register("nastaFakturanummer", { valueAsNumber: true })}
@@ -305,6 +331,7 @@ export default function CompanySettingsForm({ company }: Props) {
             >
               <Input
                 type="number"
+                inputMode="numeric"
                 step="1"
                 min="0"
                 {...register("forfallodagar", { valueAsNumber: true })}
@@ -317,10 +344,8 @@ export default function CompanySettingsForm({ company }: Props) {
               icon={<Percent className="h-3.5 w-3.5" />}
             >
               <Input
-                type="number"
-                step="0.1"
-                min="0"
-                {...register("drojsmalsranta", { valueAsNumber: true })}
+                {...decimalFalt}
+                {...register("drojsmalsranta", tomtBlirNoll)}
                 placeholder="8"
               />
             </Field>
@@ -340,11 +365,11 @@ export default function CompanySettingsForm({ company }: Props) {
         </div>
       </FormSection>
 
-      <div className="flex justify-end">
+      <FormKnappar>
         <Button type="submit" size="lg" disabled={isPending}>
           {isPending ? "Sparar..." : "Spara företagsuppgifter"}
         </Button>
-      </div>
+      </FormKnappar>
     </form>
   );
 }

@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Skeningevvs-loggen",
-  description: "Personlig loggbok",
+  description: "Jobb, kunder, offerter och fakturor för Skeninge VVS",
   appleWebApp: {
     capable: true,
     title: "Skeninge VVS",
@@ -30,7 +30,7 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      lang="sv"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">

@@ -1,7 +1,6 @@
 import { Suspense } from "react";
-import { headers } from "next/headers";
 import { redirect, notFound } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/server-hjalp";
 import { skapaOffertData } from "@/lib/offert";
 import { getCompanySettings, getOffert } from "@/lib/queries";
 import SkrivUtOffert from "@/components/minasidor/offert/skriv-ut-offert";
@@ -23,7 +22,7 @@ async function SkrivUtOffertInnehall({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getSession();
   if (!session?.user) redirect("/logga-in");
 
   const { id } = await params;

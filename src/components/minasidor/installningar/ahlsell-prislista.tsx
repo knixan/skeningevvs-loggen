@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { anropaAction } from "@/lib/anropa-action";
 import { FileText, Info, Percent, Store, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -196,7 +197,7 @@ function InlasningForm({ status }: { status: AhlsellStatus }) {
       return;
     }
     startTaBort(async () => {
-      const res = await rensaAhlsellPrislista();
+      const res = await anropaAction(() => rensaAhlsellPrislista());
       if (!res.ok) {
         toast.error(res.error);
         return;
@@ -338,7 +339,7 @@ function PaslagForm({ paslag }: { paslag: number }) {
       return;
     }
     startTransition(async () => {
-      const res = await uppdateraMaterialPaslag(procent);
+      const res = await anropaAction(() => uppdateraMaterialPaslag(procent));
       if (!res.ok) {
         toast.error(res.error);
         return;

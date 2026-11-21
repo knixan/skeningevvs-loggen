@@ -1,7 +1,8 @@
 import "server-only";
 
+import { cache } from "react";
 import { headers } from "next/headers";
-import type { z } from "zod";
+import { z } from "zod";
 import { auth } from "./auth";
 import { ROT_BARA_PRIVAT } from "./job-schema";
 import { prisma } from "./prisma";
@@ -13,19 +14,27 @@ const DEFAULT_COMPANY_NAME = "Mitt företag";
 
 export type Fel = { ok: false; error: string };
 
-export async function getSession() {
+/**
+ * Den inloggade sessionen. cache() gör att den bara slås upp en gång per
+ * förfrågan, även om sidan och flera läsningar frågar efter den. Använd den
+ * här i sidor i stället för att anropa auth.api.getSession själv.
+ */
+export const getSession = cache(async () => {
   return auth.api.getSession({ headers: await headers() });
-}
+});
 
-/** Den inloggades företag, eller null. Skapar aldrig något. */
-export async function inloggatForetag() {
+/** Den inloggades företag, eller null. Skapar aldrig något. En gång per förfrågan. */
+export const inloggatForetag = cache(async () => {
   const session = await getSession();
   if (!session?.user) return null;
   return prisma.company.findFirst({ where: { ownerId: session.user.id } });
-}
+});
+
+/** Ett id från klienten: en icke-tom sträng av rimlig längd. */
+export const idSchema = z.string().min(1).max(100);
 
 /** Bara för skrivningar – en läsning får aldrig skapa företaget. */
-async function getOrCreateCompany(userId: string) {
+export async function getOrCreateCompany(userId: string) {
   const existing = await prisma.company.findFirst({
     where: { ownerId: userId },
   });
@@ -57,9 +66,9 @@ type CompanyCtx = { company: Awaited<ReturnType<typeof getOrCreateCompany>> };
 
 /** För skrivningar: skapar företaget om det saknas. */
 export async function requireCompany(): Promise<CompanyCtx | Fel> {
-  const session = await getSession();
-  if (!session?.user) return { ok: false, error: "Inte inloggad" };
   try {
+    const session = await getSession();
+    if (!session?.user) return { ok: false, error: "Inte inloggad" };
     return { company: await getOrCreateCompany(session.user.id) };
   } catch (err) {
     console.error("Kunde inte hämta eller skapa företaget:", err);
@@ -68,19 +77,29 @@ export async function requireCompany(): Promise<CompanyCtx | Fel> {
 }
 
 export async function requireExistingCompany(): Promise<CompanyCtx | Fel> {
-  const session = await getSession();
-  if (!session?.user) return { ok: false, error: "Inte inloggad" };
-  const company = await prisma.company.findFirst({
-    where: { ownerId: session.user.id },
-  });
-  if (!company) return { ok: false, error: "Inget företag hittat" };
-  return { company };
+  try {
+    const session = await getSession();
+    if (!session?.user) return { ok: false, error: "Inte inloggad" };
+    const company = await prisma.company.findFirst({
+      where: { ownerId: session.user.id },
+    });
+    if (!company) return { ok: false, error: "Inget företag hittat" };
+    return { company };
+  } catch (err) {
+    console.error("Kunde inte hämta företaget:", err);
+    return { ok: false, error: "Kunde inte hämta företaget. Försök igen." };
+  }
 }
 
 export async function requireSession(): Promise<{ userId: string } | Fel> {
-  const session = await getSession();
-  if (!session?.user) return { ok: false, error: "Inte inloggad" };
-  return { userId: session.user.id };
+  try {
+    const session = await getSession();
+    if (!session?.user) return { ok: false, error: "Inte inloggad" };
+    return { userId: session.user.id };
+  } catch (err) {
+    console.error("Kunde inte hämta sessionen:", err);
+    return { ok: false, error: "Kunde inte kontrollera inloggningen. Försök igen." };
+  }
 }
 
 /**
@@ -93,10 +112,16 @@ export async function kontrolleraKund(
   data: { customerId?: string; rotAvdrag: boolean },
 ) {
   if (!data.customerId) return null;
-  const customer = await prisma.customer.findFirst({
-    where: { id: data.customerId, companyId },
-    select: { typ: true },
-  });
+  const hamtad = await medFelhantering(
+    "Kunde inte kontrollera kunden. Försök igen.",
+    () =>
+      prisma.customer.findFirst({
+        where: { id: data.customerId, companyId },
+        select: { typ: true },
+      }),
+  );
+  if (!hamtad.ok) return hamtad.error;
+  const customer = hamtad.data;
   if (!customer) return "Kund hittades inte";
   if (data.rotAvdrag && customer.typ === "foretag") return ROT_BARA_PRIVAT;
   return null;

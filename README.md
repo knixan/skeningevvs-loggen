@@ -39,11 +39,12 @@ Personal job, customer, and invoice log for a one-person plumbing/HVAC (VVS) bus
 
 - **Jobs**: log articles, miscellaneous costs, trips, work hours, photos, fixed or itemized pricing, status (not started / in progress / done), invoicing and payment status
 - **Customers**: private individuals and companies, with ROT deduction details (property designation, apartment number, housing association)
-- **Invoices**: print or download as PDF, with a running invoice number, ROT tax deduction, F-tax status, and payment details (bankgiro/plusgiro/swish) — no email sending
+- **Invoices**: print or download as PDF, with a running invoice number, ROT tax deduction, reverse-charge VAT for construction companies, F-tax status, VAT number, date of service and payment details (bankgiro/plusgiro/swish) — no email sending. Issued invoices are stored unchanged; a wrong invoice is corrected with a credit note. Invoices missing legally required details (e.g. ROT details, the seller's VAT number) cannot be issued
+- **Invoice list and export**: all issued invoices and credit notes per year, CSV export of invoices and the customer register
 - **Quotes**: price a job before it is ordered (materials, estimated hours and mileage, or a fixed price, with preliminary ROT deduction), print or download as PDF with its own quote number and validity date, and turn an accepted quote into a job
 - **Statistics**: revenue and ROT deduction per month and year (from issued invoices, by invoice date), unpaid and overdue amounts, jobs by status, hours worked, kilometres driven, and the biggest customers for a chosen year or month
 - **Company details**: logo, contact info, invoice settings
-- **Image uploads** for job photos and company logo via UploadThing
+- **Image uploads** for job photos and company logo via UploadThing. Uploads are registered per company, and unsaved uploads are cleaned up daily by a Vercel cron job
 - **Login**: email + password, no email verification. Only one account can ever be registered.
 
 ## Tech stack
@@ -67,6 +68,7 @@ DATABASE_URL=        # Postgres connection string (e.g. Neon)
 BETTER_AUTH_SECRET=  # random secret key, at least 32 characters (openssl rand -base64 32)
 BETTER_AUTH_URL=     # https://your-domain, or http://localhost:3000 locally
 UPLOADTHING_TOKEN=   # from https://uploadthing.com/dashboard
+CRON_SECRET=         # optional: protects the daily cleanup of unsaved uploads (Vercel Cron)
 ```
 
 ### 2. Install dependencies and migrate the database
@@ -101,7 +103,8 @@ src/
 ├── app/
 │   ├── logga-in/, registrera/     # Login and registration
 │   ├── api/auth/, api/uploadthing/ # better-auth and UploadThing handlers
-│   └── mina-sidor/                 # Protected area: jobs, quotes, customers, company, settings
+│   ├── api/export/, api/cron/      # CSV export and the upload cleanup job
+│   └── mina-sidor/                 # Protected area: jobs, quotes, customers, invoices, statistics, company, settings
 ├── components/
 │   ├── ui/                         # shadcn/ui components
 │   └── minasidor/                  # Business-logic UI (jobs, quotes, customers, invoices, company, overview)
@@ -113,4 +116,4 @@ prisma/
 
 ## Deployment
 
-The app is built to run on Vercel with an external Postgres database (e.g. Neon). Set the same environment variables as above in the project settings, with `BETTER_AUTH_URL` set to the production `https://` domain.
+The app is built to run on Vercel with an external Postgres database (e.g. Neon). Set the same environment variables as above in the project settings, with `BETTER_AUTH_URL` set to the production `https://` domain. `vercel.json` runs the functions in London (`lhr1`), close to the database – change it if the database moves.

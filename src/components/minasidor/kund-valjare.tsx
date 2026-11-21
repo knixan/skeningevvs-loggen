@@ -1,48 +1,40 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRef, useState } from "react";
 import { Search, User, UserPlus, X } from "lucide-react";
 import { kundensNamn, type Customer } from "@/lib/job-schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Felmeddelande, SekundarKnapp } from "@/components/minasidor/formular";
+import CustomerForm from "@/components/minasidor/kunder/customer-form";
 
 /**
  * Välj en kund ur kundregistret, med sökning. Används i jobb- och
- * offertformuläret.
+ * offertformuläret. "Skapa ny kund" öppnar kundformuläret i en dialog – den
+ * nya kunden väljs direkt och det man fyllt i ligger kvar.
  */
 export default function KundValjare({
   customers,
   valdId,
   onValj,
+  onNyKund,
   fel,
 }: {
   customers: Customer[];
   valdId?: string;
   onValj: (id: string | undefined) => void;
+  /** En kund som skapats i dialogen. Formuläret lägger till och väljer den. */
+  onNyKund: (kund: Customer) => void;
   fel?: string;
 }) {
-  // "Skapa ny kund" öppnar en ny flik. När man kommer tillbaka hämtas
-  // kundlistan på nytt med router.refresh() – det behåller det man redan
-  // fyllt i i formuläret, till skillnad från att ladda om sidan.
-  const router = useRouter();
-  const vantarPaNyKund = useRef(false);
-  useEffect(() => {
-    function hamtaNyaKunder() {
-      if (document.visibilityState !== "visible" || !vantarPaNyKund.current)
-        return;
-      vantarPaNyKund.current = false;
-      router.refresh();
-    }
-    document.addEventListener("visibilitychange", hamtaNyaKunder);
-    window.addEventListener("focus", hamtaNyaKunder);
-    return () => {
-      document.removeEventListener("visibilitychange", hamtaNyaKunder);
-      window.removeEventListener("focus", hamtaNyaKunder);
-    };
-  }, [router]);
-
+  const [nyKundOppen, setNyKundOppen] = useState(false);
   const [kundSok, setKundSok] = useState("");
   const [kundFokus, setKundFokus] = useState(false);
   const kundSokRef = useRef<HTMLInputElement>(null);
@@ -60,12 +52,34 @@ export default function KundValjare({
       })
     : customers;
 
+  const nyKundDialog = (
+    <Dialog open={nyKundOppen} onOpenChange={setNyKundOppen}>
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Ny kund</DialogTitle>
+          <DialogDescription>
+            Kunden sparas i kundregistret och väljs här direkt.
+          </DialogDescription>
+        </DialogHeader>
+        <CustomerForm
+          mode="create"
+          onSparad={(kund) => {
+            setNyKundOppen(false);
+            setKundSok("");
+            onNyKund(kund);
+          }}
+          onAvbryt={() => setNyKundOppen(false)}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+
   if (valdKund) {
     return (
-      <div className="flex items-center justify-between rounded-lg border bg-muted/40 px-4 py-3">
-        <div className="space-y-0.5">
-          <p className="font-medium text-sm">{kundensNamn(valdKund)}</p>
-          <p className="text-xs text-muted-foreground">
+      <div className="flex items-center justify-between gap-2 rounded-lg border bg-muted/40 px-4 py-3">
+        <div className="min-w-0 space-y-0.5">
+          <p className="truncate font-medium text-sm">{kundensNamn(valdKund)}</p>
+          <p className="truncate text-xs text-muted-foreground">
             {valdKund.typ === "foretag" && valdKund.kontaktperson
               ? `${valdKund.kontaktperson} · `
               : ""}
@@ -97,23 +111,19 @@ export default function KundValjare({
           <User className="h-4 w-4" />
           Befintlig kund
         </SekundarKnapp>
-        <SekundarKnapp asChild>
-          <a
-            href="/mina-sidor/kunder/ny"
-            target="_blank"
-            rel="noreferrer"
-            onClick={() => (vantarPaNyKund.current = true)}
-          >
-            <UserPlus className="h-4 w-4" />
-            Skapa ny kund
-          </a>
+        <SekundarKnapp onClick={() => setNyKundOppen(true)}>
+          <UserPlus className="h-4 w-4" />
+          Skapa ny kund
         </SekundarKnapp>
       </div>
+      {nyKundDialog}
       <div className="space-y-2">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             ref={kundSokRef}
+            type="search"
+            aria-label="Sök kund"
             placeholder="Sök på namn, telefon eller e-post..."
             value={kundSok}
             onChange={(e) => setKundSok(e.target.value)}
@@ -125,14 +135,13 @@ export default function KundValjare({
         {customers.length === 0 ? (
           <p className="text-xs text-muted-foreground">
             Inga kunder i kundregistret ännu.{" "}
-            <a
-              href="/mina-sidor/kunder/ny"
+            <button
+              type="button"
               className="underline"
-              target="_blank"
-              onClick={() => (vantarPaNyKund.current = true)}
+              onClick={() => setNyKundOppen(true)}
             >
               Lägg till en kund
-            </a>
+            </button>
             .
           </p>
         ) : (kundSok.trim() || kundFokus) && filtradeKunder.length === 0 ? (

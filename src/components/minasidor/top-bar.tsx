@@ -23,7 +23,7 @@ export function TopBar() {
     <header className="flex h-14 shrink-0 items-center justify-between border-b bg-background px-4 print:hidden">
       <Image
         src="/skeningevvs-faktura-logga.png"
-        alt="KnegarLoggen"
+        alt="Skeninge VVS logotyp"
         width={300}
         height={300}
         className="h-18 w-18 object-contain"

@@ -2,92 +2,44 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard,
-  Plus,
-  FilePenLine,
-  Users,
-  Building2,
-  Settings,
-  ChartColumn,
-} from "lucide-react";
+import { Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { merItems, navItems } from "./nav-items";
 
-const navItems = [
-  {
-    href: "/mina-sidor",
-    label: "Mina jobb",
-    mobileLabel: "Jobb",
-    icon: LayoutDashboard,
-    isActive: (p: string) =>
-      p === "/mina-sidor" || p.startsWith("/mina-sidor/jobb"),
-  },
-  {
-    href: "/mina-sidor/nytt-jobb",
-    label: "Nytt jobb",
-    mobileLabel: "Nytt",
-    icon: Plus,
-    isActive: (p: string) => p.startsWith("/mina-sidor/nytt-jobb"),
-  },
-  {
-    href: "/mina-sidor/offerter",
-    label: "Offerter",
-    mobileLabel: "Offerter",
-    icon: FilePenLine,
-    isActive: (p: string) => p.startsWith("/mina-sidor/offerter"),
-  },
-  {
-    href: "/mina-sidor/kunder",
-    label: "Kundregister",
-    mobileLabel: "Kunder",
-    icon: Users,
-    isActive: (p: string) => p.startsWith("/mina-sidor/kunder"),
-  },
-  {
-    href: "/mina-sidor/statistik",
-    label: "Statistik",
-    mobileLabel: "Statistik",
-    icon: ChartColumn,
-    isActive: (p: string) => p.startsWith("/mina-sidor/statistik"),
-  },
-  {
-    href: "/mina-sidor/foretag",
-    label: "Företagsuppgifter",
-    mobileLabel: "Företag",
-    icon: Building2,
-    isActive: (p: string) => p.startsWith("/mina-sidor/foretag"),
-  },
-  {
-    href: "/mina-sidor/installningar",
-    label: "Inställningar",
-    mobileLabel: "Mer",
-    icon: Settings,
-    isActive: (p: string) => p.startsWith("/mina-sidor/installningar"),
-  },
-];
+/** Utskrifter (faktura, offert) visas utan meny. */
+function arUtskrift(pathname: string) {
+  return pathname.endsWith("/skriv-ut");
+}
 
 export function MinaSidorSidebar() {
   const pathname = usePathname();
-  if (pathname.endsWith("/skriv-ut")) return null;
+  if (arUtskrift(pathname)) return null;
 
   return (
-    <aside className="hidden md:flex w-52 shrink-0 flex-col border-r">
-      <nav className="sticky top-4 flex flex-col gap-0.5 p-2 pt-4">
-        {navItems.map(({ href, label, icon: Icon, isActive }) => (
-          <Link
-            key={href}
-            href={href}
-            className={cn(
-              "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-              isActive(pathname)
-                ? "bg-muted text-foreground"
-                : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
-            )}
-          >
-            <Icon className="h-4 w-4 shrink-0" />
-            {label}
-          </Link>
-        ))}
+    <aside className="hidden md:flex w-52 shrink-0 flex-col border-r print:hidden">
+      <nav
+        aria-label="Huvudmeny"
+        className="sticky top-4 flex flex-col gap-0.5 p-2 pt-4"
+      >
+        {navItems.map(({ href, label, icon: Icon, isActive }) => {
+          const aktiv = isActive(pathname);
+          return (
+            <Link
+              key={href}
+              href={href}
+              aria-current={aktiv ? "page" : undefined}
+              className={cn(
+                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                aktiv
+                  ? "bg-muted text-foreground"
+                  : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+              )}
+            >
+              <Icon className="h-4 w-4 shrink-0" aria-hidden />
+              {label}
+            </Link>
+          );
+        })}
       </nav>
     </aside>
   );
@@ -95,26 +47,40 @@ export function MinaSidorSidebar() {
 
 export function MinaSidorMobileNav() {
   const pathname = usePathname();
-  if (pathname.endsWith("/skriv-ut")) return null;
+  if (arUtskrift(pathname)) return null;
+
+  const knappar = [
+    ...navItems.filter((i) => i.iMobilmeny),
+    {
+      href: "/mina-sidor/mer",
+      mobileLabel: "Mer",
+      icon: Menu,
+      // Mer är aktiv på sin egen sida och på alla sidor under den
+      isActive: (p: string) =>
+        p.startsWith("/mina-sidor/mer") || merItems.some((i) => i.isActive(p)),
+    },
+  ];
 
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-30 flex border-t bg-background md:hidden"
+      aria-label="Huvudmeny"
+      className="fixed inset-x-0 bottom-0 z-30 flex border-t bg-background md:hidden print:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      {navItems.map(({ href, mobileLabel, icon: Icon, isActive }) => {
+      {knappar.map(({ href, mobileLabel, icon: Icon, isActive }) => {
         const active = isActive(pathname);
         return (
           <Link
             key={href}
             href={href}
+            aria-current={active ? "page" : undefined}
             className={cn(
-              "flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-medium transition-colors",
+              "flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-0.5 py-2 text-xs font-medium transition-colors",
               active ? "text-foreground" : "text-muted-foreground",
             )}
           >
-            <Icon className="h-5 w-5" strokeWidth={active ? 2.5 : 2} />
-            {mobileLabel}
+            <Icon className="h-5 w-5" strokeWidth={active ? 2.5 : 2} aria-hidden />
+            <span className="max-w-full truncate">{mobileLabel}</span>
           </Link>
         );
       })}

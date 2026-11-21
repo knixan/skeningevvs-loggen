@@ -284,7 +284,11 @@ export default function SkrivUtOffert({ offertId, offert, logoUrl }: Props) {
                 </tr>
               )}
               <tr className="moms-rad">
-                <td>Moms {satser.momsProcent}%</td>
+                <td>
+                  {offert.omvandMoms
+                    ? "Moms 0 % – omvänd betalningsskyldighet"
+                    : `Moms ${satser.momsProcent}%`}
+                </td>
                 <td>{kr(summa.moms)}</td>
               </tr>
               {summa.rotAvdrag > 0 && (
@@ -330,9 +334,15 @@ export default function SkrivUtOffert({ offertId, offert, logoUrl }: Props) {
         <p className="giltighet">
           Offerten gäller till och med {offert.giltigTill}.
         </p>
-        {saljare.fSkatt && (
+        {(saljare.fSkatt || saljarensMomsNummer(saljare)) && (
           <p className="fskatt">
-            ✓ Godkänd för F-skatt · Momsreg.nr: {saljarensMomsNummer(saljare)}
+            {[
+              saljare.fSkatt && "✓ Godkänd för F-skatt",
+              saljarensMomsNummer(saljare) &&
+                `Momsreg.nr: ${saljarensMomsNummer(saljare)}`,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
           </p>
         )}
         {offert.rotAvdrag && (

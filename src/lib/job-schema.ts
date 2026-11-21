@@ -1,10 +1,70 @@
 import { z } from "zod";
 
 // ============================================================
+// Personnummer och momsregistreringsnummer
+// ============================================================
+
+/** Luhn-algoritmen (kontrollsiffran i personnummer och org.nr). */
+function luhnStammer(siffror: string): boolean {
+  let summa = 0;
+  for (let i = 0; i < siffror.length; i++) {
+    let n = Number(siffror[siffror.length - 1 - i]);
+    if (i % 2 === 1) {
+      n *= 2;
+      if (n > 9) n -= 9;
+    }
+    summa += n;
+  }
+  return summa % 10 === 0;
+}
+
+/**
+ * Ett personnummer som ÅÅÅÅMMDD-XXXX, ÅÅMMDD-XXXX (med eller utan streck
+ * eller +) med rätt kontrollsiffra. Månad och dag kontrolleras grovt – dag
+ * 61–91 är samordningsnummer.
+ */
+export function arGiltigtPersonnummer(pnr: string): boolean {
+  const m = pnr.trim().match(/^(\d{2})?(\d{2})(\d{2})(\d{2})[-+ ]?(\d{4})$/);
+  if (!m) return false;
+  const [, , ar, manad, dag, sista] = m;
+  const mm = Number(manad);
+  const dd = Number(dag);
+  if (mm < 1 || mm > 12) return false;
+  if (!((dd >= 1 && dd <= 31) || (dd >= 61 && dd <= 91))) return false;
+  return luhnStammer(`${ar}${manad}${dag}${sista}`);
+}
+
+/** Ett svenskt organisationsnummer, NNNNNN-NNNN, med rätt kontrollsiffra. */
+export function arGiltigtOrgNummer(nr: string): boolean {
+  const siffror = nr.replace(/[-\s]/g, "");
+  return /^\d{10}$/.test(siffror) && luhnStammer(siffror);
+}
+
+/** "se 556677-8899 01" → "SE556677889901". */
+export function normaliseraMomsNummer(nr: string): string {
+  return nr.replace(/[\s-]/g, "").toUpperCase();
+}
+
+/** Svenskt momsregistreringsnummer: SE + tio siffror + 01. */
+export function arGiltigtMomsNummer(nr: string): boolean {
+  return /^SE\d{10}01$/.test(normaliseraMomsNummer(nr));
+}
+
+const MOMSNR_FEL = "Momsreg.nr skrivs SE + tio siffror + 01, t.ex. SE556677889901";
+
+const momsNummerFalt = z
+  .string()
+  .trim()
+  .max(30)
+  .transform(normaliseraMomsNummer)
+  .refine((v) => v === "" || arGiltigtMomsNummer(v), MOMSNR_FEL);
+
+// ============================================================
 // Kund-schema
 // ============================================================
 
-export const customerSchema = z.object({
+export const customerSchema = z
+  .object({
   typ: z.enum(["privat", "foretag"]).default("privat"),
   namn: z.string().trim().min(1, "Namn krävs").max(120),
   adress: z.string().trim().max(200).optional().default(""),
@@ -23,14 +83,39 @@ export const customerSchema = z.object({
     .max(200)
     .optional()
     .or(z.literal("")),
-  personnummer: z.string().trim().max(30).optional().default(""),
+  personnummer: z
+    .string()
+    .trim()
+    .max(30)
+    .refine(
+      (v) => v === "" || arGiltigtPersonnummer(v),
+      "Personnumret stämmer inte – kontrollera siffrorna (ÅÅÅÅMMDD-XXXX)",
+    )
+    .optional()
+    .default(""),
   foretagsnamn: z.string().trim().max(120).optional().default(""),
   kontaktperson: z.string().trim().max(120).optional().default(""),
   orgNummer: z.string().trim().max(30).optional().default(""),
   fastighetsbeteckning: z.string().trim().max(120).optional().default(""),
   lagenhetsnummer: z.string().trim().max(30).optional().default(""),
   bostadsrattsforening: z.string().trim().max(120).optional().default(""),
-});
+  brfOrgNummer: z
+    .string()
+    .trim()
+    .max(30)
+    .refine(
+      (v) => v === "" || arGiltigtOrgNummer(v),
+      "Organisationsnumret stämmer inte (NNNNNN-NNNN)",
+    )
+    .optional()
+    .default(""),
+  omvandByggmoms: z.boolean().optional().default(false),
+  momsNummer: momsNummerFalt.optional().default(""),
+  })
+  .refine((d) => !(d.typ === "foretag" && d.omvandByggmoms && !d.momsNummer), {
+    message: "Omvänd byggmoms kräver kundens momsregistreringsnummer",
+    path: ["momsNummer"],
+  });
 
 export type CustomerInput = z.infer<typeof customerSchema>;
 
@@ -61,13 +146,22 @@ export function kundensNamn(
 export function rotBostad(
   kund?: Pick<
     CustomerInput,
-    "fastighetsbeteckning" | "bostadsrattsforening" | "lagenhetsnummer"
+    | "fastighetsbeteckning"
+    | "bostadsrattsforening"
+    | "lagenhetsnummer"
+    | "brfOrgNummer"
   > | null,
 ): string {
   if (!kund) return "";
+  const brf = [
+    kund.bostadsrattsforening,
+    kund.brfOrgNummer && `org.nr ${kund.brfOrgNummer}`,
+  ]
+    .filter(Boolean)
+    .join(", ");
   return [
     kund.fastighetsbeteckning && `Fastighet: ${kund.fastighetsbeteckning}`,
-    kund.bostadsrattsforening && `BRF: ${kund.bostadsrattsforening}`,
+    brf && `BRF: ${brf}`,
     kund.lagenhetsnummer && `Lgh: ${kund.lagenhetsnummer}`,
   ]
     .filter(Boolean)
@@ -81,7 +175,56 @@ export function rotBostad(
 export function rensaKundFalt(data: CustomerInput): CustomerInput {
   return data.typ === "foretag"
     ? { ...data, personnummer: "" }
-    : { ...data, foretagsnamn: "", kontaktperson: "", orgNummer: "" };
+    : {
+        ...data,
+        foretagsnamn: "",
+        kontaktperson: "",
+        orgNummer: "",
+        omvandByggmoms: false,
+        momsNummer: "",
+      };
+}
+
+/**
+ * Omvänd byggmoms gäller för kunden: ett företag som självt säljer
+ * byggtjänster. Då blir fakturan utan moms (köparen redovisar momsen).
+ */
+export function harOmvandByggmoms(
+  kund?: Pick<CustomerInput, "typ" | "omvandByggmoms"> | null,
+): boolean {
+  return kund?.typ === "foretag" && Boolean(kund.omvandByggmoms);
+}
+
+/**
+ * Det som saknas för att Skatteverket ska betala ut ROT-avdraget: köparens
+ * personnummer, och fastighetsbeteckning eller – för en bostadsrätt –
+ * föreningens organisationsnummer och lägenhetsnumret. Tom lista = komplett.
+ */
+export function rotUppgifterSomSaknas(
+  kund?: Pick<
+    CustomerInput,
+    | "typ"
+    | "personnummer"
+    | "fastighetsbeteckning"
+    | "lagenhetsnummer"
+    | "brfOrgNummer"
+  > | null,
+): string[] {
+  if (!kund) return ["kund"];
+  if (kund.typ === "foretag") return [];
+  const saknas: string[] = [];
+  if (!kund.personnummer) saknas.push("personnummer");
+  else if (!arGiltigtPersonnummer(kund.personnummer))
+    saknas.push("ett giltigt personnummer");
+  const harFastighet = Boolean(kund.fastighetsbeteckning?.trim());
+  const harBrf =
+    Boolean(kund.brfOrgNummer?.trim()) && Boolean(kund.lagenhetsnummer?.trim());
+  if (!harFastighet && !harBrf) {
+    saknas.push(
+      "fastighetsbeteckning (eller för bostadsrätt: föreningens org.nr och lägenhetsnummer)",
+    );
+  }
+  return saknas;
 }
 
 /** Tal med svensk decimalkomma och högst två decimaler, t.ex. "7,5". */
@@ -292,8 +435,28 @@ export type Job = JobInput & {
   id: string;
   skapad: string;
   fakturanummer?: number;
+  /** Jobbet har minst en utfärdad faktura (även krediterad) */
+  harFaktura?: boolean;
   customer?: Customer | null;
 };
+
+/**
+ * Varningen om ROT-taket, eller null. `tidigare` = ROT kunden redan fått på
+ * andra fakturor samma år, `detta` = ROT på det här jobbet.
+ */
+export function rotTakVarning(tidigare: number, detta: number): string | null {
+  const totalt = avrundaTillOre(tidigare + detta);
+  if (detta <= 0 || totalt <= ROT_TAK_KR * 0.8) return null;
+  const kr = (n: number) => formateraKr(n);
+  const forut =
+    tidigare > 0
+      ? `Kunden har redan fått ${kr(tidigare)} i ROT på era fakturor i år. `
+      : "";
+  if (totalt > ROT_TAK_KR) {
+    return `${forut}Med det här jobbet blir det ${kr(totalt)} – över taket på ${kr(ROT_TAK_KR)} per person och år. Det som överstiger taket får kunden betala själv, om inte två personer delar på avdraget.`;
+  }
+  return `${forut}Med det här jobbet blir det ${kr(totalt)} – nära taket på ${kr(ROT_TAK_KR)} per person och år. Kunden kan också ha fått ROT från andra hantverkare.`;
+}
 
 // ============================================================
 // Offert-schema
@@ -384,7 +547,9 @@ export const companySchema = z.object({
   telefon: z.string().trim().max(30).default(""),
   epost: z.string().trim().max(200).default(""),
   fSkatt: z.boolean().default(false),
-  momsNummer: z.string().trim().max(30).default(""),
+  // Krävs för att utfärda en faktura (kontrolleras i fakturaFel). Räknas
+  // aldrig fram ur org.nr – det blir fel för en enskild firma.
+  momsNummer: momsNummerFalt.default(""),
   bankgiro: z.string().trim().max(30).default(""),
   plusgiro: z.string().trim().max(30).default(""),
   swish: z.string().trim().max(30).default(""),
@@ -447,15 +612,34 @@ export type Prisunderlag = Pick<
 > & {
   arbetstider: { timmar: number }[];
   resor: { stracka: number }[];
+  /**
+   * Omvänd byggmoms (kunden redovisar momsen): ingen moms och inget ROT.
+   * Kommer från kunden – se harOmvandByggmoms och jobbPrisunderlag.
+   */
+  omvandMoms?: boolean;
 };
+
+/** Ett jobb som underlag till beräkningarna, med kundens momsregel. */
+export function jobbPrisunderlag(
+  job: Omit<Prisunderlag, "omvandMoms"> & {
+    customer?: Pick<CustomerInput, "typ" | "omvandByggmoms"> | null;
+  },
+): Prisunderlag {
+  return { ...job, omvandMoms: harOmvandByggmoms(job.customer) };
+}
 
 /**
  * Offertens priser som underlag till beräkningarna. Den beräknade
  * arbetstiden och körsträckan blir varsin rad, precis som loggad tid på ett
  * jobb – så räknas offerten exakt som en faktura på samma underlag.
  */
-export function offertPrisunderlag(offert: OffertInput): Prisunderlag {
+export function offertPrisunderlag(
+  offert: OffertInput & {
+    customer?: Pick<CustomerInput, "typ" | "omvandByggmoms"> | null;
+  },
+): Prisunderlag {
   return {
+    omvandMoms: harOmvandByggmoms(offert.customer),
     artiklar: offert.artiklar,
     ovrigaKostnader: offert.ovrigaKostnader,
     timpris: offert.timpris,
@@ -510,6 +694,12 @@ export function beräknaSummering(job: Prisunderlag) {
 export const MOMS_PROCENT = 25;
 /** ROT-avdrag i procent av arbetskostnaden inkl. moms (30 % år 2026). */
 export const ROT_PROCENT = 30;
+/**
+ * Högsta ROT-avdrag per person och år i kronor (2026). ROT och RUT får
+ * tillsammans vara högst 75 000 kr. Appen ser bara sina egna fakturor och vet
+ * inte hur flera ägare delar på avdraget – därför bara en varning.
+ */
+export const ROT_TAK_KR = 50_000;
 
 /** En rad på fakturan, färdigräknad – vyerna ritar bara upp den. */
 export type FakturaRad = {
@@ -586,16 +776,21 @@ export function beräknaFaktura(job: Prisunderlag) {
   const exklMoms = arFastPris
     ? avrundaTillOre(job.fastPris ?? 0)
     : summary.totalExklMoms;
-  const moms = avrundaTillOre(exklMoms * (MOMS_PROCENT / 100));
+  // Omvänd byggmoms: köparen redovisar momsen, fakturan har ingen
+  const omvandMoms = Boolean(job.omvandMoms);
+  const moms = omvandMoms
+    ? 0
+    : avrundaTillOre(exklMoms * (MOMS_PROCENT / 100));
   const totalInklMoms = avrundaTillOre(exklMoms + moms);
 
   // ROT räknas bara på arbete som står på fakturan: den löpande arbetstiden,
   // eller – med fast pris – den del av priset som angetts som arbete.
   // Loggade timmar på ett fast pris-jobb står inte på fakturan och räknas inte.
+  // ROT gäller bara privatpersoner, aldrig med omvänd byggmoms.
   const arbetskostnad = arFastPris
     ? avrundaTillOre(job.fastPrisArbete ?? 0)
     : summary.arbetstidSum;
-  const rotUnderlag = job.rotAvdrag
+  const rotUnderlag = job.rotAvdrag && !omvandMoms
     ? avrundaTillOre(arbetskostnad * (1 + MOMS_PROCENT / 100))
     : 0;
   const rotAvdrag = avrundaTillOre(rotUnderlag * (ROT_PROCENT / 100));
@@ -609,6 +804,7 @@ export function beräknaFaktura(job: Prisunderlag) {
   return {
     summary,
     rader,
+    omvandMoms,
     exklMoms,
     moms,
     totalInklMoms,

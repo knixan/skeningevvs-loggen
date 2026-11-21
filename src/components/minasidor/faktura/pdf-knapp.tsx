@@ -2,7 +2,7 @@
 
 import { PDFDownloadLink } from "@react-pdf/renderer";
 import { Download } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import type { FakturaData } from "@/lib/faktura";
 import { FakturaPdf } from "./faktura-pdf";
 
@@ -12,16 +12,20 @@ interface Props {
 }
 
 export function PdfKnapp({ faktura, logoUrl }: Props) {
+  const typ = faktura.krediterar ? "kreditfaktura" : "faktura";
   return (
+    // PDFDownloadLink är en länk – den ser ut som en knapp, men innehåller
+    // ingen <button> (knapp i länk är ogiltig HTML och ger två tab-stopp)
     <PDFDownloadLink
       document={<FakturaPdf faktura={faktura} logoUrl={logoUrl} />}
-      fileName={`faktura-${faktura.fakturanummer ?? "forhandsgranskning"}.pdf`}
+      fileName={`${typ}-${faktura.fakturanummer ?? "forhandsgranskning"}.pdf`}
+      className={buttonVariants({ variant: "outline", size: "sm" })}
     >
       {({ loading }) => (
-        <Button variant="outline" size="sm" disabled={loading} asChild={false}>
-          <Download className="h-4 w-4 mr-2" />
+        <>
+          <Download className="h-4 w-4" />
           {loading ? "Skapar PDF..." : "Ladda ner PDF"}
-        </Button>
+        </>
       )}
     </PDFDownloadLink>
   );

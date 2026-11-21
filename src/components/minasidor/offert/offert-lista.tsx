@@ -91,6 +91,7 @@ export default function OffertLista({
             <button
               key={f.value}
               type="button"
+              aria-pressed={filter === f.value}
               onClick={() => setFilter(f.value)}
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",

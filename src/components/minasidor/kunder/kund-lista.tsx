@@ -95,11 +95,14 @@ export default function KundLista({ customers }: { customers: Customer[] }) {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <Link href={`/mina-sidor/kunder/${c.id}/redigera`}>
-                    <Button variant="outline" size="icon" aria-label="Redigera">
+                  <Button variant="outline" size="icon" asChild>
+                    <Link
+                      href={`/mina-sidor/kunder/${c.id}/redigera`}
+                      aria-label={`Redigera ${kundensNamn(c)}`}
+                    >
                       <Pencil className="h-4 w-4" />
-                    </Button>
-                  </Link>
+                    </Link>
+                  </Button>
                   <CustomerDeleteButton id={c.id} namn={kundensNamn(c)} />
                 </div>
               </CardContent>

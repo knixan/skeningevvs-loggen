@@ -8,7 +8,7 @@ export default function Home() {
       <main className="flex w-full max-w-xl flex-col items-center gap-6 px-6 py-32 text-center">
        <Image
           src="/skeningevvs-faktura-logga.png"
-          alt="KnegarLoggen"
+          alt="Skeninge VVS logotyp"
           width={300}
           height={300}
           className="h-48 w-48 object-contain"
@@ -20,7 +20,7 @@ export default function Home() {
 
         <Image
           src="/kristian.png"
-          alt="KnegarLoggen"
+          alt=""
           width={300}
           height={300}
           className="h-80 w-80 object-contain"

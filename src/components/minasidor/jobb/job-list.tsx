@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ClipboardList, FileText, Pencil, Trash2, X } from "lucide-react";
+import { ClipboardList, FileText, Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";
-import Image from "next/image";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,6 +13,7 @@ import {
   type Job,
 } from "@/lib/job-schema";
 import JobOverviewDialog from "../oversikt/job-overview-dialog";
+import { BildVisare } from "../bild-visare";
 import {
   StatusBadge,
   FoljUppBadge,
@@ -134,16 +134,15 @@ export default function JobList({ jobs, onEdit, onDelete }: Props) {
                     <ClipboardList className="h-4 w-4" />
                     Översikt
                   </Button>
-                  <Link
-                    href={`/mina-sidor/jobb/${job.id}/skriv-ut`}
-                    target="_blank"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" asChild>
+                    <Link
+                      href={`/mina-sidor/jobb/${job.id}/skriv-ut`}
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <FileText className="h-4 w-4" />
                       Faktura
-                    </Button>
-                  </Link>
+                    </Link>
+                  </Button>
 
                   <Button
                     variant="outline"
@@ -152,7 +151,7 @@ export default function JobList({ jobs, onEdit, onDelete }: Props) {
                       event.stopPropagation();
                       onEdit(job);
                     }}
-                    aria-label="Redigera"
+                    aria-label={`Redigera jobbet för ${customerDisplayName || "jobb utan kund"}`}
                   >
                     <Pencil className="h-4 w-4" />
                   </Button>
@@ -164,7 +163,7 @@ export default function JobList({ jobs, onEdit, onDelete }: Props) {
                       event.stopPropagation();
                       onDelete(job.id);
                     }}
-                    aria-label="Ta bort"
+                    aria-label={`Ta bort jobbet för ${customerDisplayName || "jobb utan kund"}`}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -183,31 +182,7 @@ export default function JobList({ jobs, onEdit, onDelete }: Props) {
         onSelectImage={setValdBild}
       />
 
-      {valdBild && (
-        <div
-          className="fixed inset-0 z-100 flex items-center justify-center bg-black/90 p-4 sm:p-8"
-          onClick={() => setValdBild(null)}
-        >
-          <button
-            type="button"
-            className="absolute right-4 top-4 z-110 text-white/70 hover:text-white"
-            onClick={() => setValdBild(null)}
-            aria-label="Stäng bild"
-          >
-            <X className="h-8 w-8" />
-          </button>
-          <div className="relative h-full max-h-[85vh] w-full max-w-5xl">
-            <Image
-              src={valdBild}
-              alt="Förstorad bild"
-              fill
-              className="object-contain"
-              onClick={(event) => event.stopPropagation()}
-              priority
-            />
-          </div>
-        </div>
-      )}
+      <BildVisare url={valdBild} onStang={() => setValdBild(null)} />
     </div>
   );
 }

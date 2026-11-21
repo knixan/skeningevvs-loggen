@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "sonner";
+import { anropaAction } from "@/lib/anropa-action";
 import OffertForm from "@/components/minasidor/offert/offert-form";
 import { createOffert } from "@/lib/offert-actions";
 import type { Customer, OffertInput } from "@/lib/job-schema";
@@ -24,7 +25,7 @@ export default function NyOffertKlient({
 
   function handleSubmit(data: OffertInput) {
     startTransition(async () => {
-      const result = await createOffert(data);
+      const result = await anropaAction(() => createOffert(data));
       if (result.ok) {
         toast.success(`Offert ${result.nummer} sparad`);
         router.push("/mina-sidor/offerter");
