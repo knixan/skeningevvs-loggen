@@ -68,7 +68,7 @@ Open [http://localhost:3000](http://localhost:3000), go to `/registrera` and cre
 | `npm run start`        | Starts the built app                      |
 | `npm run lint`         | Runs ESLint                               |
 | `npm run db:migrate`   | Runs Prisma migrations against the database |
-| `npm run testdata`     | Adds made-up test customers and jobs (ids start with `testdata-`) |
+| `npm run testdata`     | Adds made-up test customers, jobs, quotes and issued invoices (ids start with `testdata-`). The invoices take numbers from the real series |
 | `npm run testdata:ta-bort` | Removes all test data – run before the app is used for real |
 
 ## Structure

@@ -7,6 +7,13 @@
 // rör aldrig riktiga kunder eller jobb. Ta bort testdatan innan appen används
 // på riktigt.
 //
+// Testdatan visar bland annat:
+// - statistik över förra året och i år (utfärdade fakturor, en kreditfaktura,
+//   obetalda och ett jobb som är markerat fakturerat utan faktura),
+// - ROT-taket: Anders går över taket med köksjobbet, Erik kommer nära,
+// - omvänd byggmoms: Östgöta Bygg (med momsreg.nr) och Vadstena Tak & Plåt
+//   (utan – fakturan kan inte utfärdas).
+//
 // Personerna och företagen är påhittade:
 // - personnummer och org.nummer har med flit fel kontrollsiffra, så de kan
 //   inte tillhöra någon,
@@ -16,6 +23,12 @@
 import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { createJiti } from "jiti";
+
+// Fakturorna byggs med appens egen kod (TypeScript), via jiti
+const jiti = createJiti(import.meta.url);
+const { skapaFakturaData, skapaKreditfaktura } = await jiti.import("../src/lib/faktura.ts");
+const { kronorTillOre, ROT_TAK_KR } = await jiti.import("../src/lib/job-schema.ts");
 
 const PREFIX = "testdata-";
 
@@ -58,18 +71,91 @@ function fejkTelefon(n) {
   return `070-174 06 ${String(n).padStart(2, "0")}`;
 }
 
+/** Momsreg.nr för ett org.nummer: "559012-3456" → "SE559012345601". */
+function momsNummerFor(orgNummer) {
+  return `SE${orgNummer.replace("-", "")}01`;
+}
+
 const idag = new Date();
+
+/** Lokalt datum → Date för @db.Date (UTC-midnatt samma dag). */
+function somDbDatum(d) {
+  const s = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return new Date(s);
+}
 
 /** Datum (för @db.Date) n dagar från idag, lokal tid. */
 function dag(n) {
-  const d = new Date(idag.getFullYear(), idag.getMonth(), idag.getDate() + n);
-  const s = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  return new Date(s);
+  return somDbDatum(new Date(idag.getFullYear(), idag.getMonth(), idag.getDate() + n));
+}
+
+/** Datum (för @db.Date) m månader tillbaka, dag d i månaden – aldrig efter idag. */
+function manad(m, d) {
+  const t = new Date(idag.getFullYear(), idag.getMonth() - m, Math.min(d, 28));
+  const nu = new Date(idag.getFullYear(), idag.getMonth(), idag.getDate());
+  return somDbDatum(t > nu ? nu : t);
+}
+
+/**
+ * Som manad(), men aldrig före 1 januari i år. ROT-taket gäller per år, så
+ * jobben som ska fylla taket måste hamna i år även när skriptet körs i januari.
+ */
+function iAr(m, d) {
+  const t = manad(m, d);
+  const nyar = new Date(`${idag.getFullYear()}-01-01`);
+  return t < nyar ? nyar : t;
+}
+
+/** @db.Date + n dagar. */
+function plusDagar(datum, n) {
+  return new Date(datum.getTime() + n * 86_400_000);
+}
+
+/** @db.Date → "YYYY-MM-DD". */
+function iso(datum) {
+  return datum.toISOString().slice(0, 10);
 }
 
 /** Tidpunkt n dagar tillbaka, kl. h – när jobbet "skapades". */
 function skapad(n, h = 8) {
   return new Date(idag.getFullYear(), idag.getMonth(), idag.getDate() + n, h, 15);
+}
+
+/** Tidpunkt n dagar före ett @db.Date, kl. 08.15 lokal tid. */
+function skapadFore(datum, n) {
+  const d = plusDagar(datum, -n);
+  return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 8, 15);
+}
+
+/** En artikel från Ahlsell. */
+function art(namn, inkopspris, pris, antal = 1, enhet = "ST") {
+  return { namn, aterforsaljare: "Ahlsell", inkopspris, pris, antal, enhet };
+}
+
+/** Arbetspass och resor flera dagar i följd från `start`. */
+function flerDagar(start, timmarPerDag, stracka) {
+  return {
+    arbetspass: timmarPerDag.map((timmar, i) => ({ datum: plusDagar(start, i), timmar })),
+    resor: stracka ? timmarPerDag.map((_, i) => ({ datum: plusDagar(start, i), stracka })) : [],
+  };
+}
+
+/**
+ * Ett avslutat och fakturerat jobb, för statistikens historik. Fakturan
+ * utfärdas samma dag som arbetet (`datum`).
+ */
+function avslutat({ datum, timmar = 0, km = 0, artiklar = [], betalt = true, ...falt }) {
+  return {
+    skapad: skapadFore(datum, 6),
+    utfort: true,
+    fakturerat: true,
+    betalt,
+    artiklar,
+    arbetspass: timmar ? [{ datum, timmar }] : [],
+    resor: km ? [{ datum, stracka: km }] : [],
+    faktura: plusDagar(datum, 0),
+    ...falt,
+  };
 }
 
 // ------------------------------------------------------------
@@ -101,6 +187,7 @@ const kunder = [
     personnummer: fejkPersonnummer("19880921", "246"),
     lagenhetsnummer: "1102",
     bostadsrattsforening: "Brf Svanen i Mjölby",
+    brfOrgNummer: fejkOrgNummer("769618", "552"),
   },
   {
     id: "erik",
@@ -217,7 +304,53 @@ const kunder = [
     telefon: fejkTelefon(16),
     epost: "lena.akesson@example.com",
   },
+  {
+    // Har fått så mycket ROT i år att nästa jobb går över taket
+    id: "anders",
+    typ: "privat",
+    namn: "Anders Wikström",
+    adress: "Bergsätersvägen 12",
+    postnummer: "591 52",
+    ort: "Motala",
+    telefon: fejkTelefon(17),
+    epost: "anders.wikstrom@example.com",
+    personnummer: fejkPersonnummer("19690402", "357"),
+    fastighetsbeteckning: "Motala Bergsäter 4:12",
+  },
+  {
+    // Omvänd byggmoms: byggfirma som anlitar VVS som underentreprenör
+    id: "byggab",
+    typ: "foretag",
+    namn: "Robin Karlsson",
+    foretagsnamn: "Östgöta Bygg & Renovering AB",
+    kontaktperson: "Robin Karlsson (projektledare)",
+    orgNummer: fejkOrgNummer("559187", "034"),
+    adress: "Industrigatan 9",
+    postnummer: "595 50",
+    ort: "Mjölby",
+    telefon: fejkTelefon(18),
+    epost: "projekt@example.com",
+    omvandByggmoms: true,
+  },
+  {
+    // Omvänd byggmoms men momsreg.nr saknas – fakturan kan inte utfärdas
+    id: "takab",
+    typ: "foretag",
+    namn: "Nils Hedberg",
+    foretagsnamn: "Vadstena Tak & Plåt AB",
+    kontaktperson: "Nils Hedberg",
+    orgNummer: fejkOrgNummer("559402", "718"),
+    adress: "Hamngatan 4",
+    postnummer: "592 31",
+    ort: "Vadstena",
+    telefon: fejkTelefon(19),
+    epost: "nils@example.com",
+    omvandByggmoms: true,
+  },
 ];
+
+const byggab = kunder.find((k) => k.id === "byggab");
+byggab.momsNummer = momsNummerFor(byggab.orgNummer);
 
 // ------------------------------------------------------------
 // Jobb – täcker alla statusar, ROT, fast pris, följ upp (passerad och
@@ -230,6 +363,7 @@ const MIL = 6.5; // kr/km
 const jobb = [
   {
     id: "vvb-lars",
+    faktura: dag(-36),
     kund: "lars",
     skapad: skapad(-41),
     rotAvdrag: true,
@@ -309,6 +443,7 @@ const jobb = [
   },
   {
     id: "avlopp-gunilla",
+    faktura: dag(-30),
     kund: "gunilla",
     skapad: skapad(-33, 14),
     rotAvdrag: true,
@@ -343,6 +478,7 @@ const jobb = [
   },
   {
     id: "vp-perolof",
+    faktura: dag(-24),
     kund: "perolof",
     skapad: skapad(-27, 8),
     rotAvdrag: true,
@@ -418,6 +554,7 @@ const jobb = [
   },
   {
     id: "undercentral-brf",
+    faktura: dag(-57),
     kund: "brf",
     skapad: skapad(-60, 9),
     utfort: true,
@@ -442,6 +579,7 @@ const jobb = [
   },
   {
     id: "lacka-fastigheter",
+    faktura: dag(-14),
     kund: "fastigheter",
     skapad: skapad(-15, 8),
     utfort: true,
@@ -490,6 +628,355 @@ const jobb = [
     ],
     arbetspass: [{ datum: dag(-11), timmar: 1.5 }],
     resor: [{ datum: dag(-11), stracka: 9 }],
+  },
+  {
+    // Markerat fakturerat utan utfärdad faktura – statistiken räknar det inte
+    id: "manuell-bageri",
+    kund: "bageri",
+    skapad: skapad(-50, 9),
+    utfort: true,
+    fakturerat: true,
+    planeratArbete: "Byte av varmvattenberedare i bageriets disk.",
+    utfortArbete: "Bytt beredare 100 l.",
+    anteckningar: "Fakturerad för hand i Excel innan appen fanns.",
+    artiklar: [art("Varmvattenberedare 100 l", 5900, 7690)],
+    arbetspass: [{ datum: dag(-48), timmar: 3 }],
+    resor: [{ datum: dag(-48), stracka: 4 }],
+  },
+
+  // ---------- ROT-taket ----------
+  // Anders har i år fått 16 575 + 24 000 = 40 575 kr i ROT. Köksjobbet ger
+  // 10 725 kr till → 51 300 kr, över taket på 50 000 kr: varningen syns i
+  // jobbformuläret och på fakturasidan.
+  {
+    id: "badrum-anders",
+    kund: "anders",
+    skapad: skapadFore(iAr(7, 6), 10),
+    rotAvdrag: true,
+    utfort: true,
+    fakturerat: true,
+    betalt: true,
+    planeratArbete: "Totalrenovering av badrum på övervåningen, VVS-delen.",
+    utfortArbete:
+      "Rivit gammalt, nya tappvattenrör och avlopp i vägg, ny golvbrunn, monterat WC, tvättställ, duschblandare och handdukstork.",
+    artiklar: [
+      art("Golvbrunn 110 mm med klämring", 1420, 1890),
+      art("PEX-rör 15 mm i skyddsrör", 31, 45, 30, "M"),
+      art("Fördelarskåp med 4 utgångar", 2350, 3150),
+      art("Vägghängd WC med fixtur", 4990, 5990),
+      art("Duschset med termostatblandare", 1650, 2190),
+      art("Handdukstork vattenburen", 1890, 2490),
+    ],
+    ...flerDagar(iAr(7, 6), [8.5, 8.5, 8.5, 8.5, 8.5, 8.5, 8.5, 8.5], 22),
+    faktura: plusDagar(iAr(7, 6), 10),
+  },
+  {
+    id: "bergvarme-anders",
+    kund: "anders",
+    skapad: skapadFore(iAr(3, 12), 20),
+    rotAvdrag: true,
+    utfort: true,
+    fakturerat: true,
+    betalt: true,
+    fastPris: 145000,
+    // ROT: 64 000 × 1,25 × 30 % = 24 000 kr
+    fastPrisArbete: 64000,
+    planeratArbete: "Byte från oljepanna till bergvärme. Borrning görs av annan firma.",
+    utfortArbete:
+      "Demonterat oljepanna. Installerat bergvärmepump 10 kW med inbyggd beredare, anslutit kollektor och värmesystem. Injusterat och provkört.",
+    artiklar: [
+      art("Bergvärmepump 10 kW med beredare", 54900, 69900),
+      art("Expansionskärl 25 l", 1790, 2400),
+      art("Köldbärarvätska 10 l", 420, 590, 8),
+      art("Rör och kopplingar, sats", 2980, 3980),
+    ],
+    ...flerDagar(iAr(3, 12), [9, 9, 8, 6], 22),
+    faktura: plusDagar(iAr(3, 12), 4),
+  },
+  {
+    id: "kok-anders",
+    kund: "anders",
+    skapad: skapad(-20, 7),
+    rotAvdrag: true,
+    utfort: true,
+    planeratArbete: "VVS till nytt kök och flytt av tvättstugan till källaren.",
+    utfortArbete:
+      "Dragit nya rör till kök, anslutit diskbänk och diskmaskin. Flyttat tvättmaskin, ny golvbrunn och tvättbänk i källaren.",
+    internaAnteckningar: "Kunden är nära ROT-taket – prata om att dela avdraget med frun.",
+    artiklar: [
+      art("Köksblandare med diskmaskinsavstängning", 1450, 1990),
+      art("Golvbrunn 110 mm med klämring", 1420, 1890),
+      art("Tvättbänk rostfri", 2190, 2890),
+      art("PEX-rör 15 mm i skyddsrör", 31, 45, 18, "M"),
+    ],
+    // 44 h × 650 × 1,25 × 30 % = 10 725 kr ROT
+    ...flerDagar(dag(-14), [8, 9, 9, 9, 9], 22),
+  },
+  {
+    // Erik: 33 000 kr i ROT i år + badrumsjobbet (34 h, 8 287,50 kr) → nära taket
+    id: "radiatorer-erik",
+    kund: "erik",
+    skapad: skapadFore(iAr(5, 14), 15),
+    rotAvdrag: true,
+    utfort: true,
+    fakturerat: true,
+    betalt: true,
+    fastPris: 112000,
+    // ROT: 88 000 × 1,25 × 30 % = 33 000 kr
+    fastPrisArbete: 88000,
+    planeratArbete: "Byte av alla radiatorer och nya rör i hela huset.",
+    utfortArbete:
+      "Bytt 9 radiatorer med termostatventiler, dragit nya rör i hela huset, spolat och injusterat systemet.",
+    artiklar: [
+      art("Radiator 600×1200", 1650, 2200, 9),
+      art("Termostatventil med ratt", 210, 290, 9),
+      art("Kopparrör 15 mm", 59, 85, 19, "M"),
+    ],
+    ...flerDagar(iAr(5, 14), [8, 8, 8, 8, 8], 26),
+    faktura: plusDagar(iAr(5, 14), 7),
+  },
+
+  // ---------- Omvänd byggmoms ----------
+  {
+    id: "ue-lagenheter-byggab",
+    kund: "byggab",
+    ...avslutat({
+      datum: manad(11, 10),
+      planeratArbete: "UE: VVS i 4 lägenheter, Hamngatan 12 i Mjölby.",
+      utfortArbete: "Rördragning, golvbrunnar och montering av porslin i 4 lägenheter.",
+      artiklar: [
+        art("Golvbrunn 110 mm med klämring", 1420, 1890, 4),
+        art("Vägghängd WC med fixtur", 4990, 5990, 4),
+        art("PEX-rör 15 mm i skyddsrör", 31, 45, 80, "M"),
+      ],
+      ...flerDagar(manad(11, 10), [8, 8, 8, 8, 8], 30),
+    }),
+  },
+  {
+    id: "ue-radhus-byggab",
+    kund: "byggab",
+    ...avslutat({
+      datum: manad(5, 12),
+      planeratArbete: "UE: rördragning radhus etapp 2, 6 hus.",
+      utfortArbete: "Tappvatten och avlopp i 6 radhus. Provtryckt.",
+      artiklar: [
+        art("Fördelarskåp med 4 utgångar", 2350, 3150, 6),
+        art("PEX-rör 15 mm i skyddsrör", 31, 45, 140, "M"),
+        art("Avloppsrör PP 110 mm", 118, 165, 36, "M"),
+      ],
+      ...flerDagar(manad(5, 12), [8, 8, 8, 8, 8, 8, 8], 30),
+    }),
+  },
+  {
+    // Obetald och förfallen
+    id: "ue-lokal-byggab",
+    kund: "byggab",
+    ...avslutat({
+      datum: manad(1, 6),
+      betalt: false,
+      planeratArbete: "UE: VVS i ny lunchlokal, Tuna industriområde.",
+      utfortArbete: "Diskbänk, diskmaskin, varmvattenberedare och två WC.",
+      artiklar: [
+        art("Varmvattenberedare 100 l", 5900, 7690),
+        art("Vägghängd WC med fixtur", 4990, 5990, 2),
+      ],
+      ...flerDagar(manad(1, 6), [9, 9], 30),
+    }),
+  },
+  {
+    // Inte fakturerat än – förhandsgranskningen visar 0 kr moms
+    id: "ue-villa-byggab",
+    kund: "byggab",
+    skapad: skapad(-10, 7),
+    utfort: true,
+    planeratArbete: "UE: VVS i nybyggd villa, Lillgatan 3 i Skänninge.",
+    utfortArbete: "Komplett VVS-installation enligt ritning.",
+    artiklar: [
+      art("Golvvärmerör PE-RT 17 mm", 9.5, 14, 300, "M"),
+      art("Golvvärmefördelare 6 kretsar", 3690, 4790),
+      art("Varmvattenberedare 200 l", 7900, 10200),
+    ],
+    ...flerDagar(dag(-8), [8, 8, 8, 6], 16),
+  },
+  {
+    // Omvänd byggmoms utan momsreg.nr – fakturan kan inte utfärdas
+    id: "takavvattning-takab",
+    kund: "takab",
+    skapad: skapad(-6, 13),
+    utfort: true,
+    planeratArbete: "UE: anslutning av stuprör till dagvatten, Klosterområdet.",
+    utfortArbete: "Anslutit 4 stuprör till dagvattenledning.",
+    anteckningar: "Kundens momsreg.nr saknas – fråga Nils.",
+    artiklar: [art("Dagvattenrör PVC 110 mm", 95, 135, 12, "M")],
+    arbetspass: [{ datum: dag(-5), timmar: 5 }],
+    resor: [{ datum: dag(-5), stracka: 28 }],
+  },
+
+  // ---------- Kreditfaktura ----------
+  {
+    // Fakturerades först med 9 timmar för mycket, krediterades och
+    // fakturerades på nytt.
+    id: "pumpar-fastigheter",
+    kund: "fastigheter",
+    ...avslutat({
+      datum: manad(2, 9),
+      planeratArbete: "Byte av cirkulationspumpar i undercentralen, Storgatan 31.",
+      utfortArbete: "Bytt två cirkulationspumpar och injusterat.",
+      anteckningar: "Första fakturan hade 9 timmar för mycket – krediterad.",
+      artiklar: [art("Cirkulationspump 25-60", 2890, 3790, 2)],
+      ...flerDagar(manad(2, 9), [6, 6], 22),
+    }),
+    kreditering: { extraTimmar: 9, dagarEfter: 8 },
+  },
+
+  // ---------- Historik för statistiken (förra året och i år) ----------
+  {
+    id: "h-blandare-lars",
+    kund: "lars",
+    rotAvdrag: true,
+    ...avslutat({
+      datum: manad(16, 12),
+      timmar: 2,
+      km: 12,
+      planeratArbete: "Byte av duschblandare.",
+      utfortArbete: "Bytt duschblandare till termostatblandare.",
+      artiklar: [art("Duschset med termostatblandare", 1650, 2190)],
+    }),
+  },
+  {
+    id: "h-disk-bageri",
+    kund: "bageri",
+    ...avslutat({
+      datum: manad(15, 8),
+      timmar: 3.5,
+      km: 4,
+      planeratArbete: "Stopp i avloppet från disken.",
+      utfortArbete: "Spolat avlopp och bytt vattenlås.",
+      artiklar: [art("Vattenlås diskbänk 32 mm", 185, 259, 2)],
+    }),
+  },
+  {
+    id: "h-stam-fastigheter",
+    kund: "fastigheter",
+    ...avslutat({
+      datum: manad(14, 20),
+      planeratArbete: "Förberedelse inför stambyte, Storgatan 31.",
+      utfortArbete: "Inventerat stammar, monterat nya avstängningsventiler i källaren.",
+      artiklar: [art("Kulventil 28 mm", 312, 430, 6), art("Kopparrör 28 mm", 118, 165, 8, "M")],
+      ...flerDagar(manad(14, 20), [8, 8], 22),
+    }),
+  },
+  {
+    id: "h-element-gunilla",
+    kund: "gunilla",
+    rotAvdrag: true,
+    ...avslutat({
+      datum: manad(13, 3),
+      timmar: 4,
+      km: 4,
+      planeratArbete: "Byta element i vardagsrummet.",
+      utfortArbete: "Bytt radiator och termostatventil.",
+      artiklar: [art("Radiator 600×1200", 1650, 2200), art("Termostatventil med ratt", 210, 290)],
+    }),
+  },
+  {
+    id: "h-kok-pensionat",
+    kund: "pensionat",
+    ...avslutat({
+      datum: manad(12, 15),
+      timmar: 5,
+      km: 28,
+      planeratArbete: "Nya avstängningsventiler i köket.",
+      utfortArbete: "Bytt 6 ventiler under diskbänkar och spis.",
+      artiklar: [art("Kulventil 22 mm", 198, 275, 6)],
+    }),
+  },
+  {
+    id: "h-frusen-pensionat",
+    kund: "pensionat",
+    ...avslutat({
+      datum: manad(10, 14),
+      timmar: 3,
+      km: 28,
+      planeratArbete: "Frusen ledning i tvättstugan.",
+      utfortArbete: "Tinat och isolerat ledningen.",
+      artiklar: [art("Rörisolering 22 mm", 29, 45, 6, "M")],
+    }),
+  },
+  {
+    id: "h-kallare-brf",
+    kund: "brf",
+    ...avslutat({
+      datum: manad(9, 5),
+      timmar: 6,
+      km: 3,
+      planeratArbete: "Läcka i källaren.",
+      utfortArbete: "Bytt 1,5 m kopparrör och två kopplingar.",
+      artiklar: [art("Kopparrör 22 mm", 89, 125, 1.5, "M"), art("Klämringskoppling 22 mm", 48, 69, 2)],
+    }),
+  },
+  {
+    id: "h-wc-maria",
+    kund: "maria",
+    rotAvdrag: true,
+    ...avslutat({
+      datum: manad(9, 22),
+      timmar: 3,
+      km: 18,
+      planeratArbete: "Byte av toalettstol.",
+      utfortArbete: "Monterat ny toalettstol.",
+      artiklar: [art("Toalettstol golvstående med mjukstängande sits", 2450, 3200)],
+    }),
+  },
+  {
+    id: "h-beredare-fastigheter",
+    kund: "fastigheter",
+    ...avslutat({
+      datum: manad(8, 11),
+      timmar: 5,
+      km: 22,
+      planeratArbete: "Byte av varmvattenberedare i tvättstugan.",
+      utfortArbete: "Bytt beredare 200 l.",
+      artiklar: [art("Varmvattenberedare 200 l", 7900, 10200)],
+    }),
+  },
+  {
+    id: "h-blandare-bageri",
+    kund: "bageri",
+    ...avslutat({
+      datum: manad(6, 4),
+      timmar: 4,
+      km: 4,
+      planeratArbete: "Byta blandare och vattenlås i disken.",
+      utfortArbete: "Bytt två blandare och vattenlås.",
+      artiklar: [art("Köksblandare med diskmaskinsavstängning", 1450, 1990, 2)],
+    }),
+  },
+  {
+    id: "h-utekran-lars",
+    kund: "lars",
+    rotAvdrag: true,
+    ...avslutat({
+      datum: manad(4, 8),
+      timmar: 2,
+      km: 12,
+      planeratArbete: "Frostfri utekran.",
+      utfortArbete: "Monterat frostfri utekran på baksidan.",
+      artiklar: [art("Utekran frostfri 300 mm", 690, 950)],
+    }),
+  },
+  {
+    id: "h-cirkpump-pensionat",
+    kund: "pensionat",
+    ...avslutat({
+      datum: manad(1, 20),
+      betalt: false,
+      timmar: 3,
+      km: 28,
+      planeratArbete: "Varmvattencirkulationen fungerar dåligt.",
+      utfortArbete: "Bytt VVC-pump.",
+      artiklar: [art("VVC-pump", 1890, 2490)],
+    }),
   },
 ];
 
@@ -599,6 +1086,25 @@ const offerter = [
       "Byte av oljepanna mot luft/vatten-värmepump 12 kW med inomhusdel och 180 l varmvattenberedare. Demontering av oljepanna och oljetank ingår.",
     internaAnteckningar: "Kunden valde en annan firma – billigare men utan tanksanering.",
   },
+  {
+    // Omvänd byggmoms – offerten blir utan moms
+    id: "ue-forskola-byggab",
+    nummer: 9006,
+    kund: "byggab",
+    status: "skickad",
+    offertdatum: dag(-3),
+    giltigTill: dag(27),
+    beraknadeTimmar: 120,
+    beraknadStracka: 300,
+    beskrivning:
+      "UE: VVS-installation i ny förskola, Väderstad. Tappvatten, avlopp, golvvärme och anslutning av storköksutrustning.",
+    villkor: "Omvänd betalningsskyldighet för byggtjänster gäller.",
+    artiklar: [
+      { namn: "Golvvärmerör PE-RT 17 mm", aterforsaljare: "Ahlsell", inkopspris: 9.5, pris: 14, antal: 900, enhet: "M" },
+      { namn: "Golvvärmefördelare 6 kretsar", aterforsaljare: "Ahlsell", inkopspris: 3690, pris: 4790, antal: 3, enhet: "ST" },
+      { namn: "Vägghängd WC med fixtur", aterforsaljare: "Bauhaus", inkopspris: 4990, pris: 5990, antal: 6, enhet: "ST" },
+    ],
+  },
 ];
 
 // ------------------------------------------------------------
@@ -652,6 +1158,9 @@ async function laggIn() {
 
   for (const j of jobb) {
     const { id, kund, artiklar = [], resor = [], arbetspass = [], ovrigaKostnader = [], ...falt } = j;
+    // Fakturorna skapas efter jobben (utfardaTestfakturor) – inga kolumner på jobbet
+    delete falt.faktura;
+    delete falt.kreditering;
     await prisma.job.create({
       data: {
         ...falt,
@@ -686,13 +1195,161 @@ async function laggIn() {
     });
   }
 
-  console.log(`Klart: ${kunder.length} testkunder, ${jobb.length} testjobb och ${offerter.length} testofferter i "${company.name}".`);
+  const fakturor = await utfardaTestfakturor(company);
+
+  console.log(`Klart: ${kunder.length} testkunder, ${jobb.length} testjobb, ${offerter.length} testofferter och ${fakturor.antal} testfakturor (nr ${fakturor.forsta}–${fakturor.sista}) i "${company.name}".`);
+  console.log(`\nROT på utfärdade fakturor i år (tak ${ROT_TAK_KR} kr per person):`);
+  for (const [namn, kr] of Object.entries(fakturor.rotIAr)) {
+    console.log(`  ${namn}: ${kr.toLocaleString("sv-SE")} kr`);
+  }
+}
+
+// ------------------------------------------------------------
+// Fakturor
+//
+// Statistiken och ROT-taket räknar bara på utfärdade fakturor, så de
+// fakturerade testjobben får riktiga sparade fakturor. De byggs med appens
+// egna funktioner (skapaFakturaData, skapaKreditfaktura) – samma belopp som
+// om de utfärdats i appen.
+//
+// Numren tas ur företagets riktiga nummerserie (ett block, i en sats) och
+// delas ut i datumordning. Höga testnummer skulle göra att "Nästa
+// fakturanummer" inte går att spara under Företag. När testdatan tas bort
+// kan nästa fakturanummer sättas tillbaka där.
+// ------------------------------------------------------------
+
+/** Ett jobb ur databasen i den form som lib/faktura.ts vill ha (som mapJob). */
+function somJob(j) {
+  return {
+    ...j,
+    customerId: j.customerId ?? undefined,
+    fastPris: j.fastPris ?? undefined,
+    fastPrisArbete: j.fastPrisArbete ?? undefined,
+    artiklar: j.artiklar.map((a) => ({ ...a, enhet: a.enhet ?? "" })),
+    resor: j.resor.map((r) => ({ ...r, datum: iso(r.datum) })),
+    arbetstider: j.arbetspass.map((w) => ({ ...w, datum: iso(w.datum) })),
+    skapad: j.skapad.toISOString(),
+  };
+}
+
+function fakturaRad(companyId, data, koppling, id) {
+  return {
+    id,
+    companyId,
+    jobId: koppling.jobId,
+    customerId: koppling.customerId,
+    krediterarId: koppling.krediterarId ?? null,
+    fakturanummer: data.fakturanummer,
+    fakturadatum: new Date(data.fakturadatum),
+    forfallodatum: new Date(data.forfallodatum),
+    utfardad: new Date(`${data.fakturadatum}T09:00:00`),
+    exklMomsOre: kronorTillOre(data.summa.exklMoms),
+    momsOre: kronorTillOre(data.summa.moms),
+    rotAvdragOre: kronorTillOre(data.summa.rotAvdrag),
+    attBetalaOre: kronorTillOre(data.summa.attBetala),
+    innehall: data,
+  };
+}
+
+async function utfardaTestfakturor(company) {
+  const senast = dag(0);
+  const tidigast = (d) => iso(d > senast ? senast : d);
+
+  // Vad som ska utfärdas, i den ordning det hände
+  const handelser = [];
+  for (const j of jobb) {
+    if (!j.faktura) continue;
+    const jobId = PREFIX + "jobb-" + j.id;
+    const dbJobb = await prisma.job.findUniqueOrThrow({
+      where: { id: jobId },
+      include: { artiklar: true, resor: true, arbetspass: true, ovrigaKostnader: true, customer: true },
+    });
+    const job = somJob(dbJobb);
+    const fakturaId = PREFIX + "faktura-" + j.id;
+
+    if (j.kreditering) {
+      // Första fakturan hade för många timmar
+      const fel = {
+        ...job,
+        arbetstider: [...job.arbetstider, { datum: iso(j.faktura), timmar: j.kreditering.extraTimmar }],
+      };
+      const kreditdatum = tidigast(plusDagar(j.faktura, j.kreditering.dagarEfter));
+      handelser.push(
+        { datum: tidigast(j.faktura), typ: "faktura", id: fakturaId + "-fel", job: fel },
+        { datum: kreditdatum, typ: "kredit", id: fakturaId + "-kredit", original: fakturaId + "-fel", job },
+        { datum: kreditdatum, typ: "faktura", id: fakturaId, job },
+      );
+    } else {
+      handelser.push({ datum: tidigast(j.faktura), typ: "faktura", id: fakturaId, job });
+    }
+  }
+  handelser.sort((a, b) => a.datum.localeCompare(b.datum)); // stabil – kreditfakturan före den nya
+
+  return prisma.$transaction(
+    async (tx) => {
+      // Reservera hela blocket i en sats – samma princip som appens reserveraFakturanummer
+      const [{ forsta }] = await tx.$queryRaw`
+        UPDATE company
+        SET "nastaFakturanummer" = "nastaFakturanummer" + ${handelser.length}
+        WHERE id = ${company.id}
+        RETURNING "nastaFakturanummer" - ${handelser.length} AS forsta
+      `;
+
+      const sparade = new Map();
+      const rotIAr = {};
+      const iAr = String(idag.getFullYear());
+
+      for (const [i, h] of handelser.entries()) {
+        const nummer = forsta + i;
+        const koppling = { jobId: h.job.id, customerId: h.job.customerId ?? null };
+        let rad;
+        if (h.typ === "kredit") {
+          const original = sparade.get(h.original);
+          const data = skapaKreditfaktura(original.innehall, { fakturanummer: nummer, fakturadatum: h.datum });
+          rad = {
+            ...fakturaRad(company.id, data, { ...koppling, krediterarId: original.id }, h.id),
+            // Som i krediteraFaktura: originalets ören med ombytt tecken
+            exklMomsOre: -original.exklMomsOre,
+            momsOre: -original.momsOre,
+            rotAvdragOre: -original.rotAvdragOre,
+            attBetalaOre: -original.attBetalaOre,
+          };
+        } else {
+          const data = skapaFakturaData(h.job, company, { fakturanummer: nummer, fakturadatum: h.datum });
+          rad = fakturaRad(company.id, data, koppling, h.id);
+          // Jobbet bär numret på sin gällande faktura
+          await tx.job.update({ where: { id: h.job.id }, data: { fakturanummer: nummer } });
+        }
+        await tx.faktura.create({ data: rad });
+        sparade.set(h.id, rad);
+
+        if (h.datum.startsWith(iAr) && rad.rotAvdragOre !== 0 && h.job.customer) {
+          const namn = h.job.customer.namn;
+          rotIAr[namn] = (rotIAr[namn] ?? 0) + rad.rotAvdragOre / 100;
+        }
+      }
+      return { antal: handelser.length, forsta, sista: forsta + handelser.length - 1, rotIAr };
+    },
+    { timeout: 60_000 },
+  );
 }
 
 try {
   if (process.argv.includes("--ta-bort")) {
     const r = await taBortTestdata();
     console.log(`Tog bort ${r.kunder} testkunder, ${r.jobb} testjobb, ${r.offerter} testofferter och ${r.fakturor} testfakturor.`);
+    if (r.fakturor) {
+      // Testfakturorna tog nummer ur den riktiga serien – säg vad den kan sättas tillbaka till
+      const company = await prisma.company.findFirst();
+      const [jobbMax, fakturaMax] = await Promise.all([
+        prisma.job.aggregate({ where: { companyId: company.id }, _max: { fakturanummer: true } }),
+        prisma.faktura.aggregate({ where: { companyId: company.id }, _max: { fakturanummer: true } }),
+      ]);
+      const lagsta = Math.max(jobbMax._max.fakturanummer ?? 0, fakturaMax._max.fakturanummer ?? 0) + 1;
+      if (lagsta < company.nastaFakturanummer) {
+        console.log(`Nästa fakturanummer är ${company.nastaFakturanummer}. Utan testdatan kan det sättas till ${lagsta} under Företag.`);
+      }
+    }
   } else {
     await laggIn();
   }
