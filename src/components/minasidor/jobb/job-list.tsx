@@ -63,33 +63,24 @@ export default function JobList({ jobs, onEdit, onDelete }: Props) {
             className="cursor-pointer transition-colors hover:bg-accent/50"
             onClick={() => setViewingJob(job)}
           >
-            <CardContent className="flex flex-col gap-3 pt-5 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0 space-y-1">
-                <div className="truncate text-lg text-blue-700 font-bold">
-                  {customerDisplayName || "Jobb utan kundnamn"}
-                </div>
-                {beskrivning && (
-                  <div className="truncate text-sm font-medium text-foreground/80">
-                    {beskrivning}
+            <CardContent className="space-y-4 pt-5">
+              {/* Överst: kund och jobb till vänster, siffrorna till höger */}
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0 space-y-1">
+                  <div className="truncate text-lg font-bold text-blue-700 dark:text-blue-400">
+                    {customerDisplayName || "Jobb utan kundnamn"}
                   </div>
-                )}
-                <div className="truncate text-sm text-muted-foreground">
-                  {customerAddress || "Ingen adress angiven"}
-                </div>
-
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  <StatusBadge job={job} />
-                  <FoljUppBadge job={job} />
-                  {job.fakturerat && (
-                    <Badge label="Fakturerat" color="orange" />
+                  {beskrivning && (
+                    <p className="truncate text-sm text-foreground/80">
+                      {beskrivning}
+                    </p>
                   )}
-                  {job.betalt && <Badge label="Betalt" color="green" />}
-                  {job.rotAvdrag && <Badge label="ROT" />}
+                  <p className="truncate text-sm text-muted-foreground">
+                    {customerAddress || "Ingen adress angiven"}
+                  </p>
                 </div>
-              </div>
 
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-                <div className="space-y-0.5 text-left text-xs text-muted-foreground sm:text-right">
+                <div className="shrink-0 space-y-0.5 whitespace-nowrap text-right text-xs text-muted-foreground">
                   <div>
                     <span className="tabular-nums font-medium text-foreground">
                       {formateraTal(summary.totalTimmar)}
@@ -121,8 +112,21 @@ export default function JobList({ jobs, onEdit, onDelete }: Props) {
                     </div>
                   ) : null}
                 </div>
+              </div>
 
-                <div className="flex items-center gap-2 sm:justify-end">
+              {/* Nederst: status till vänster, knappar till höger */}
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <StatusBadge job={job} />
+                  <FoljUppBadge job={job} />
+                  {job.fakturerat && (
+                    <Badge label="Fakturerat" color="orange" />
+                  )}
+                  {job.betalt && <Badge label="Betalt" color="green" />}
+                  {job.rotAvdrag && <Badge label="ROT" />}
+                </div>
+
+                <div className="flex items-center gap-2">
                   <Button
                     variant="secondary"
                     size="sm"
