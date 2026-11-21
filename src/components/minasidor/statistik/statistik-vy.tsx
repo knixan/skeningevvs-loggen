@@ -8,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { SidHuvud } from "@/components/minasidor/sida";
 import { OmsattningDiagram } from "./omsattning-diagram";
 import { PeriodVal } from "./period-val";
 import {
@@ -27,15 +28,12 @@ export function StatistikVy({ s }: { s: Statistik }) {
 
   return (
     <div className="space-y-10">
-      <div>
-        <h1 className="text-2xl font-bold">Statistik</h1>
-        <p className="text-sm text-muted-foreground">
-          Omsättning och ROT-avdrag räknas på utfärdade fakturor, efter
-          fakturadatum.
-        </p>
-      </div>
+      <SidHuvud
+        titel="Statistik"
+        beskrivning="Omsättning och ROT-avdrag räknas på utfärdade fakturor, efter fakturadatum."
+      />
 
-      <section aria-labelledby="just-nu" className="space-y-3">
+      <section aria-labelledby="just-nu" className="space-y-4">
         <div>
           <h2 id="just-nu" className="text-lg font-semibold">
             Just nu
@@ -44,8 +42,9 @@ export function StatistikVy({ s }: { s: Statistik }) {
             Gäller i dag, oavsett vald period.
           </p>
         </div>
-        <div className="grid gap-3 md:grid-cols-2">
-          <div className="grid content-start gap-3">
+        {/* Obetalt och Förfallet delar på höjden bredvid Jobben-kortet */}
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid auto-rows-fr gap-4">
             <Nyckeltal
               etikett="Obetalt"
               varde={heltKr(obetalt.attBetalaOre)}
@@ -64,7 +63,7 @@ export function StatistikVy({ s }: { s: Statistik }) {
           <JobbStatusKort status={s.status} />
         </div>
         {s.fakturaSaknas > 0 && (
-          <p className="flex gap-2 rounded-lg border bg-background p-3 text-sm text-muted-foreground">
+          <p className="flex gap-2 rounded-xl bg-card p-4 text-sm text-muted-foreground ring-1 ring-foreground/10">
             <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
             <span>
               {s.fakturaSaknas === 1
@@ -90,7 +89,7 @@ export function StatistikVy({ s }: { s: Statistik }) {
           />
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-2">
           <Nyckeltal
             etikett="Omsättning exkl. moms"
             varde={heltKr(summa.omsattningOre)}
@@ -110,7 +109,9 @@ export function StatistikVy({ s }: { s: Statistik }) {
             }
           />
         </div>
-        <div className="grid grid-cols-3 gap-3">
+        {/* Samma tre kolumner som diagrammet och kundlistan nedanför, så
+            att kanterna linjerar */}
+        <div className="grid grid-cols-3 gap-4">
           <Nyckeltal etikett="Nya jobb" varde={String(summa.nyaJobb)} />
           <Nyckeltal
             etikett="Arbetade timmar"
@@ -122,8 +123,8 @@ export function StatistikVy({ s }: { s: Statistik }) {
           />
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-5">
-          <Card className="lg:col-span-3">
+        <div className="grid gap-4 lg:grid-cols-3">
+          <Card className="lg:col-span-2">
             <CardHeader>
               <CardTitle>Omsättning per månad</CardTitle>
               <CardDescription>
@@ -136,7 +137,6 @@ export function StatistikVy({ s }: { s: Statistik }) {
             </CardContent>
           </Card>
           <ToppKunderKort
-            className="lg:col-span-2"
             kunder={s.toppKunder}
             period={period}
             omsattningOre={summa.omsattningOre}
