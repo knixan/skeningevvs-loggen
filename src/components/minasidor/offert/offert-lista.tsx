@@ -122,20 +122,38 @@ export default function OffertLista({
             const gattUt = harGattUt(o, idag);
             return (
               <Card key={o.id}>
-                <CardContent className="flex flex-col gap-3 pt-5 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0 space-y-1">
-                    <p className="text-xs font-medium text-muted-foreground">
-                      Offert {o.offertnummer}
-                    </p>
-                    <div className="truncate text-lg font-bold text-blue-700">
-                      {kundensNamn(o.customer) || "Ingen kund vald"}
+                <CardContent className="space-y-4 pt-5">
+                  {/* Överst: vem och vad till vänster, priset till höger */}
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground">
+                        Offert {o.offertnummer}
+                      </p>
+                      <Link
+                        href={`/mina-sidor/offerter/${o.id}/redigera`}
+                        className="block truncate text-lg font-bold text-blue-700 hover:underline dark:text-blue-400"
+                      >
+                        {kundensNamn(o.customer) || "Ingen kund vald"}
+                      </Link>
+                      {beskrivning && (
+                        <p className="truncate text-sm text-foreground/80">
+                          {beskrivning}
+                        </p>
+                      )}
                     </div>
-                    {beskrivning && (
-                      <div className="truncate text-sm font-medium text-foreground/80">
-                        {beskrivning}
+                    <div className="shrink-0 text-right">
+                      <div className="whitespace-nowrap text-lg font-semibold tabular-nums">
+                        {formateraKr(pris.attBetala)}
                       </div>
-                    )}
-                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      <div className="whitespace-nowrap text-xs text-muted-foreground">
+                        {pris.rotAvdrag > 0 ? "efter ROT" : "inkl. moms"}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Nederst: status och giltighet till vänster, knappar till höger */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+                    <div className="flex flex-wrap items-center gap-1.5">
                       <span
                         className={cn(
                           "rounded-full px-2 py-0.5 text-[10px] font-bold",
@@ -159,26 +177,13 @@ export default function OffertLista({
                           Fast pris
                         </span>
                       )}
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-                    <div className="space-y-0.5 text-left text-xs text-muted-foreground sm:text-right">
-                      <div className="text-base font-semibold tabular-nums text-foreground">
-                        {formateraKr(pris.attBetala)}
-                      </div>
-                      <div>
-                        {pris.rotAvdrag > 0
-                          ? "att betala efter ROT"
-                          : "att betala inkl. moms"}
-                      </div>
-                      <div className="flex items-center gap-1 sm:justify-end">
-                        <CalendarClock className="h-3 w-3" />
+                      <span className="ml-1 inline-flex items-center gap-1 whitespace-nowrap text-xs text-muted-foreground">
+                        <CalendarClock className="h-3.5 w-3.5" />
                         Gäller t.o.m. {kortDatum(o.giltigTill)}
-                      </div>
+                      </span>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                    <div className="flex items-center gap-2">
                       <Button variant="outline" size="sm" asChild>
                         <Link
                           href={`/mina-sidor/offerter/${o.id}/skriv-ut`}
