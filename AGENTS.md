@@ -18,8 +18,8 @@ En vanlig Next.js-app (inte monorepo), npm som pakethanterare.
 
 ## Struktur
 
-- **`src/app/`** – routes. `logga-in/`, `registrera/`, `api/auth/` (better-auth), `api/uploadthing/`, och det skyddade området `mina-sidor/` (jobb, offerter, kunder, företag, inställningar, `jobb/[id]/skriv-ut` = faktura, `offerter/[id]/skriv-ut` = offert).
-- **`src/components/minasidor/`** – UI med affärslogik, uppdelat på `jobb/`, `offert/`, `kunder/`, `faktura/`, `foretag/`, `oversikt/`, `installningar/`. Delat mellan jobb- och offertformuläret: `formular.tsx` (kort, fält, `ToggleRow`, `SumRow`), `kund-valjare.tsx` och `prisrader.tsx` (artiklar och övriga kostnader – kräver `<FormProvider>`).
+- **`src/app/`** – routes. `logga-in/`, `registrera/`, `api/auth/` (better-auth), `api/uploadthing/`, och det skyddade området `mina-sidor/` (jobb, offerter, kunder, statistik, företag, inställningar, `jobb/[id]/skriv-ut` = faktura, `offerter/[id]/skriv-ut` = offert).
+- **`src/components/minasidor/`** – UI med affärslogik, uppdelat på `jobb/`, `offert/`, `kunder/`, `faktura/`, `foretag/`, `oversikt/`, `statistik/`, `installningar/`. Delat mellan jobb- och offertformuläret: `formular.tsx` (kort, fält, `ToggleRow`, `SumRow`), `kund-valjare.tsx` och `prisrader.tsx` (artiklar och övriga kostnader – kräver `<FormProvider>`).
 - **`src/components/ui/`** – shadcn/ui. Lägg till nya komponenter med `npx shadcn add <komponent>`, skriv dem inte för hand.
 - **`src/lib/`**
   - `job-schema.ts` – zod-scheman (kund, jobb, offert, företag), typer och **alla beräkningar** (`beräknaSummering`, `beräknaFaktura`, `offertPrisunderlag`, `radBelopp`, `avrundaTillOre`).
@@ -29,6 +29,7 @@ En vanlig Next.js-app (inte monorepo), npm som pakethanterare.
   - `offert-actions.ts` – server actions för offerter, inklusive `skapaJobbFranOffert` ("Gör om till jobb").
   - `jobb-db.ts` – hur ett validerat jobb sparas (`nyttJobbTillDb` m.fl.). Delas av `createJob` och `skapaJobbFranOffert` så att ett jobb alltid sparas med samma fält.
   - `queries.ts` – läsningar för serverkomponenter (`import "server-only"`, inga endpoints).
+  - `statistik.ts` – läsningarna till statistiksidan (`getStatistik`, `tolkaPeriod`). Summerar per månad i databasen med `$queryRaw`. `räknaStatistik` tar databasen som argument, så den kan provköras i en transaktion som rullas tillbaka.
   - `server-hjalp.ts` – `requireCompany`/`requireExistingCompany`/`requireSession`, `inloggatForetag` och `medFelhantering`. Delas av actions och läsningar.
   - `auth.ts` / `auth-client.ts` – better-auth. `env.ts` – kräver alla miljövariabler vid start.
   - `prisma.ts` – Prisma-klient med `@prisma/adapter-pg`.
@@ -63,10 +64,11 @@ En vanlig Next.js-app (inte monorepo), npm som pakethanterare.
   2. validera indata med zod **på servern** – klientens validering räknas inte,
   3. kontrollera ägarskap (`companyId`) för varje id från klienten, även `customerId` och id:n på underrader (artiklar, resor, arbetspass, övriga kostnader),
   4. returnera `{ ok: false, error }` med ett svenskt felmeddelande i stället för att kasta, och fånga databasfel med `medFelhantering` (eller try/catch).
-- **En läsning får aldrig skapa eller ändra något.** Läsningar ligger i `queries.ts`, inte i en `"use server"`-fil.
+- **En läsning får aldrig skapa eller ändra något.** Läsningar ligger i `queries.ts` (och `statistik.ts`), inte i en `"use server"`-fil.
 - **UploadThing:** radera filer från UploadThing först **efter** att databasen har sparats (se `updateJob`) – aldrig direkt vid klick. Radera bara nycklar som tillhör det här företaget. Radera aldrig "allt som inte används".
 - **Datum:** resor och arbetspass är `@db.Date` och skickas som `YYYY-MM-DD`. Standarddatum räknas i lokal tid (`idag()` i `lib/datum.ts`), inte med `toISOString()` (UTC).
 - **Personnummer** visas bara där det behövs (ROT, faktura).
+- **Statistik:** omsättning och ROT räknas bara på utfärdade fakturor (`faktura`), efter fakturadatum och med de sparade summorna i ören – aldrig genom att räkna om jobben. Ett jobb som är markerat som fakturerat utan utfärdad faktura har inget fakturadatum och räknas inte i omsättningen (sidan säger hur många det är). Obetalt gäller just nu: sparat belopp att betala, annars `beräknaFaktura`. Tidpunkter (`skapad`) grupperas i svensk tid, datum (`@db.Date`) som de är.
 - **Kundnamn** visas alltid med `kundensNamn()` från `lib/job-schema.ts` – aldrig `foretagsnamn || namn` direkt.
 - **En kund med fakturerade jobb kan inte tas bort** (en förhandsgranskad faktura hämtar mottagaren från kunden – en utfärdad har den sparad).
 

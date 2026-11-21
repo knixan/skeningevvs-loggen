@@ -9,6 +9,7 @@ import {
   Users,
   Building2,
   Settings,
+  ChartColumn,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -41,6 +42,13 @@ const navItems = [
     mobileLabel: "Kunder",
     icon: Users,
     isActive: (p: string) => p.startsWith("/mina-sidor/kunder"),
+  },
+  {
+    href: "/mina-sidor/statistik",
+    label: "Statistik",
+    mobileLabel: "Statistik",
+    icon: ChartColumn,
+    isActive: (p: string) => p.startsWith("/mina-sidor/statistik"),
   },
   {
     href: "/mina-sidor/foretag",

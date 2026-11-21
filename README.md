@@ -41,6 +41,7 @@ Personal job, customer, and invoice log for a one-person plumbing/HVAC (VVS) bus
 - **Customers**: private individuals and companies, with ROT deduction details (property designation, apartment number, housing association)
 - **Invoices**: print or download as PDF, with a running invoice number, ROT tax deduction, F-tax status, and payment details (bankgiro/plusgiro/swish) — no email sending
 - **Quotes**: price a job before it is ordered (materials, estimated hours and mileage, or a fixed price, with preliminary ROT deduction), print or download as PDF with its own quote number and validity date, and turn an accepted quote into a job
+- **Statistics**: revenue and ROT deduction per month and year (from issued invoices, by invoice date), unpaid and overdue amounts, jobs by status, hours worked, kilometres driven, and the biggest customers for a chosen year or month
 - **Company details**: logo, contact info, invoice settings
 - **Image uploads** for job photos and company logo via UploadThing
 - **Login**: email + password, no email verification. Only one account can ever be registered.

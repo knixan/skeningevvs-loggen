@@ -30,6 +30,27 @@ export function laggTillDagar(datum: string, dagar: number): string {
     .slice(0, 10);
 }
 
+/** Månadernas namn, januari först. Index 0 = månad 1. */
+export const MANADSNAMN = [
+  "januari",
+  "februari",
+  "mars",
+  "april",
+  "maj",
+  "juni",
+  "juli",
+  "augusti",
+  "september",
+  "oktober",
+  "november",
+  "december",
+] as const;
+
+/** Månad 1–12 → "jan", "feb" … */
+export function kortManad(manad: number): string {
+  return MANADSNAMN[manad - 1].slice(0, 3);
+}
+
 /** `YYYY-MM-DD` → t.ex. "25 nov". Tolkas som ett datum, utan tidszon. */
 export function kortDatum(datum: string): string {
   const [ar, manad, dag] = datum.split("-").map(Number);
