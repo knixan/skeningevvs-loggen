@@ -14,6 +14,7 @@ import {
 } from "@/components/minasidor/formular";
 import {
   AHLSELL_DELSTORLEK,
+  artikelnyckel,
   avkodaAnsi,
   beraknaPrislista,
   formateraAvtalsdatum,
@@ -36,7 +37,7 @@ export type AhlsellStatus = {
   importeradVid: string | null;
   avtalInlast: boolean;
   avtalSlutdatum: string;
-  grundFilnamn: string;
+  grundFilnamn: string[];
   avtalFilnamn: string;
   materialPaslag: number;
 };
@@ -60,8 +61,11 @@ function InlasningForm({ status }: { status: AhlsellStatus }) {
   const router = useRouter();
   const grundRef = useRef<HTMLInputElement>(null);
   const avtalRef = useRef<HTMLInputElement>(null);
-  const [grundFil, setGrundFil] = useState<File | null>(null);
+  // Beräkningsgrunden kan komma i flera filer (t.ex. VVS och isolering).
+  // Alla väljs på en gång och blir tillsammans en lista.
+  const [grundFiler, setGrundFiler] = useState<File[]>([]);
   const [avtalFil, setAvtalFil] = useState<File | null>(null);
+  const harGrund = grundFiler.length > 0;
   const [framsteg, setFramsteg] = useState<{
     fas: "hamtar" | "sparar";
     klara: number;
@@ -71,8 +75,8 @@ function InlasningForm({ status }: { status: AhlsellStatus }) {
   const laser = framsteg !== null;
   const harPrislista = status.importeradVid !== null;
   // Bara avtalsfil vald → avtalet läggs på grundpriserna som redan är sparade
-  const endastAvtal = !grundFil && avtalFil !== null && harPrislista;
-  const kanLasaIn = grundFil !== null || endastAvtal;
+  const endastAvtal = !harGrund && avtalFil !== null && harPrislista;
+  const kanLasaIn = harGrund || endastAvtal;
 
   /** Hämtar den sparade listans grundpriser i delar, eller null vid fel. */
   async function hamtaSparadeGrundpriser(): Promise<GrundRad[] | null> {
@@ -115,18 +119,25 @@ function InlasningForm({ status }: { status: AhlsellStatus }) {
     }
     setFramsteg({ fas: "sparar", klara: 0, totalt: 0 });
     try {
-      let grundartiklar: GrundRad[];
-      if (grundFil) {
-        const grund = tolkaBerakningsgrund(avkodaAnsi(await grundFil.arrayBuffer()));
-        if (grund.artiklar.length === 0) {
-          toast.error(
-            "Hittade inga artiklar i filen. Är det beräkningsgrunden (textfil) från Ahlsell?",
-          );
-          return;
+      let grundartiklar: GrundRad[] = [];
+      if (harGrund) {
+        // Finns samma artikel i flera filer gäller den första.
+        const sedda = new Set<string>();
+        for (const fil of grundFiler) {
+          const grund = tolkaBerakningsgrund(avkodaAnsi(await fil.arrayBuffer()));
+          if (grund.artiklar.length === 0) {
+            toast.error(
+              `Hittade inga artiklar i ${fil.name}. Är det beräkningsgrunden (textfil) från Ahlsell?`,
+            );
+            return;
+          }
+          for (const a of grund.artiklar) {
+            const nyckel = artikelnyckel(a.artikelnr);
+            if (sedda.has(nyckel)) continue;
+            sedda.add(nyckel);
+            grundartiklar.push(a);
+          }
         }
-        grundartiklar = grund.artiklar;
-      } else {
-        grundartiklar = [];
       }
       const avtal = avtalFil
         ? tolkaAvtalsfil(avkodaAnsi(await avtalFil.arrayBuffer()))
@@ -138,7 +149,7 @@ function InlasningForm({ status }: { status: AhlsellStatus }) {
 
       // Avtalsfilen kontrolleras först, så en felaktig fil inte hämtar hela
       // listan i onödan.
-      if (!grundFil) {
+      if (!harGrund) {
         const sparade = await hamtaSparadeGrundpriser();
         if (!sparade) return;
         if (sparade.length === 0) {
@@ -170,7 +181,7 @@ function InlasningForm({ status }: { status: AhlsellStatus }) {
       const klar = await slutforAhlsellImport(start.importId, {
         avtalInlast: Boolean(avtal),
         avtalSlutdatum: avtal?.slutdatum ?? "",
-        grundFilnamn: grundFil?.name ?? null,
+        grundFilnamn: harGrund ? grundFiler.map((f) => f.name) : null,
         avtalFilnamn: avtalFil?.name ?? "",
       });
       if (!klar.ok) {
@@ -184,7 +195,7 @@ function InlasningForm({ status }: { status: AhlsellStatus }) {
           : `${tal(rader.length)} artiklar inlästa` +
               (avtal ? " med era avtalspriser" : " (grundpriser, utan avtal)"),
       );
-      setGrundFil(null);
+      setGrundFiler([]);
       setAvtalFil(null);
       if (grundRef.current) grundRef.current.value = "";
       if (avtalRef.current) avtalRef.current.value = "";
@@ -236,7 +247,11 @@ function InlasningForm({ status }: { status: AhlsellStatus }) {
             </p>
             <dl className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs">
               <dt className="text-muted-foreground">Beräkningsgrund</dt>
-              <dd className="break-all">{status.grundFilnamn || "inläst"}</dd>
+              <dd className="break-all">
+                {status.grundFilnamn.length > 0
+                  ? status.grundFilnamn.map((namn, i) => <div key={i}>{namn}</div>)
+                  : "inläst"}
+              </dd>
               <dt className="text-muted-foreground">Avtalsfil</dt>
               <dd className="break-all">
                 {status.avtalInlast
@@ -264,10 +279,14 @@ function InlasningForm({ status }: { status: AhlsellStatus }) {
             ref={grundRef}
             id="ahlsell-grund"
             type="file"
+            multiple
             accept=".txt,.dat,.prn,text/plain"
             disabled={laser}
-            onChange={(e) => setGrundFil(e.target.files?.[0] ?? null)}
+            onChange={(e) => setGrundFiler(Array.from(e.target.files ?? []))}
           />
+          <p className="text-xs text-muted-foreground">
+            Har du flera filer (t.ex. VVS och isolering)? Markera alla på en gång.
+          </p>
         </Field>
         <Field label="Avtalsfil" htmlFor="ahlsell-avtal">
           <Input
@@ -290,7 +309,9 @@ function InlasningForm({ status }: { status: AhlsellStatus }) {
             läs in den här. Det räcker att välja avtalsfilen – den ersätter det
             gamla avtalet och grundpriserna ligger kvar. När Ahlsell ändrar sina
             priser (t.ex. vid årsskiftet) behövs en ny beräkningsgrund; välj då
-            båda filerna. Du behöver inte ta bort den gamla listan först.
+            alla filerna med beräkningsgrund och avtalsfilen. En ny
+            beräkningsgrund ersätter hela den gamla listan – filer du inte väljer
+            igen försvinner. Du behöver inte ta bort den gamla listan först.
           </p>
         </div>
       </div>

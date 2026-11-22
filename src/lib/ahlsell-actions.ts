@@ -106,8 +106,8 @@ const slutforSchema = z.object({
     .string()
     .regex(/^(\d{6})?$/)
     .default(""),
-  // null = ingen ny beräkningsgrund (bara nytt avtal), det sparade namnet behålls
-  grundFilnamn: filnamnSchema.nullable(),
+  // null = ingen ny beräkningsgrund (bara nytt avtal), de sparade namnen behålls
+  grundFilnamn: z.array(filnamnSchema).min(1).max(50).nullable(),
   avtalFilnamn: filnamnSchema.default(""),
 });
 
@@ -245,7 +245,7 @@ export async function rensaAhlsellPrislista() {
         ahlsellAntalArtiklar: 0,
         ahlsellAvtalInlast: false,
         ahlsellAvtalSlutdatum: "",
-        ahlsellGrundFilnamn: "",
+        ahlsellGrundFilnamn: [],
         ahlsellAvtalFilnamn: "",
       },
     });

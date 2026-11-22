@@ -47,7 +47,7 @@ async function InstallningarInnehall() {
           importeradVid: company?.ahlsellImporteradVid?.toISOString() ?? null,
           avtalInlast: company?.ahlsellAvtalInlast ?? false,
           avtalSlutdatum: company?.ahlsellAvtalSlutdatum ?? "",
-          grundFilnamn: company?.ahlsellGrundFilnamn ?? "",
+          grundFilnamn: company?.ahlsellGrundFilnamn ?? [],
           avtalFilnamn: company?.ahlsellAvtalFilnamn ?? "",
           materialPaslag: company?.materialPaslag ?? 0,
         }}
