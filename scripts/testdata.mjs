@@ -28,7 +28,7 @@ import { createJiti } from "jiti";
 // Fakturorna byggs med appens egen kod (TypeScript), via jiti
 const jiti = createJiti(import.meta.url);
 const { skapaFakturaData, skapaKreditfaktura } = await jiti.import("../src/lib/faktura.ts");
-const { kronorTillOre, ROT_TAK_KR } = await jiti.import("../src/lib/job-schema.ts");
+const { kronorTillOre, ROT_TAK_KR, utprisMedPaslag } = await jiti.import("../src/lib/job-schema.ts");
 
 const PREFIX = "testdata-";
 
@@ -131,6 +131,45 @@ function skapadFore(datum, n) {
 function art(namn, inkopspris, pris, antal = 1, enhet = "ST") {
   return { namn, aterforsaljare: "Ahlsell", inkopspris, pris, antal, enhet };
 }
+
+// Påslaget som föreslås i appen när en Ahlsell-artikel väljs (Inställningar)
+const PASLAG = 30;
+
+/**
+ * En artikel ur den inlästa Ahlsell-prislistan (november 2026): artikelnummer,
+ * benämning och nettopris som de står där, utpris med PASLAG – samma rad som
+ * appen skapar när artikeln väljs i sökningen.
+ */
+function ahlsell(artikelnr, benamning, inkopspris, antal = 1, enhet = "ST") {
+  return {
+    namn: benamning,
+    artikelnr,
+    aterforsaljare: "Ahlsell",
+    inkopspris,
+    pris: utprisMedPaslag(inkopspris, PASLAG),
+    antal,
+    enhet,
+  };
+}
+
+// Artiklar som används i flera jobb och offerter
+const AHL = {
+  // Toalett
+  wcIfo: () => ahlsell("7856902", "IFÖ SIGN WC 6860 WC-STOL VITINB. S-LÅS MJUKSITS", 4185),
+  wcAcoll: () => ahlsell("7856879", "A-COLLECTION WC-STOL 4, S-LÅS3/6L,HEL.CIST.EX.SITS,SKRUV", 2373.8),
+  wcSitsSoftClose: () => ahlsell("7821789", "A-COLLECTION HÅRD WC-SITS MEDSOFT-CLOSE, UNIVERSAL, VIT", 619.44),
+  wcAnslutning: () => ahlsell("2316847", "110MM PVC/PP/MA WC-ANSL. EXC.VIT MED WC-MANSCHETT OCH HUV", 99.45),
+  wcAvstangning: () => ahlsell("7925943", "IFÖ AVSTÄNGNINGSVENTIL - WC-STOL , Z96721", 184.42),
+  silikon: () => ahlsell("305103", "FOGMASSA SIKASIL-C OFFWHITE300ML BYGG O SANITETSSILIKON", 112.14),
+  // Kök och diskmaskin
+  koksblandareOras: () => ahlsell("8310554", "ORAS SAGA KÖKSBLANDARE 3934FHÖG PIP. MED DM AVST.", 1894.06),
+  koksblandareGbg: () => ahlsell("8310776", "GBG KÖKSBLANDARE ATLANTIC MEDDM.AVST. HÖG PIP . KROM", 1938),
+  koksblandareUtanDm: () => ahlsell("8310553", "ORAS SAGA KÖKSBLANDARE 3933FHÖG PIP. UTAN DM AVST.", 1414.74),
+  kommodvattenlas: () => ahlsell("8074871", "CONTURA KOMMODVATTENLÅSM.FLEX SLANG & TM AVL.ANSL", 180.44),
+  diskmaskinsventil: () => ahlsell("8543992", "FMM 2295-1501 KULVENTIL 15VINKEL MED VRED", 235.79),
+  grenrorDiskmaskin: () => ahlsell("8082414", "32 GRENRÖR MED SLANG.ANSLINV.GG 32/40 FP 78500", 69.16),
+  golvskyddDiskmaskin: () => ahlsell("8039039", "AQUATEAM+ GD60 MONTERADGOLVSKYDD/DISKMASKIN 60CM", 197.12),
+};
 
 /** Arbetspass och resor flera dagar i följd från `start`. */
 function flerDagar(start, timmarPerDag, stracka) {
@@ -395,14 +434,16 @@ const jobb = [
     skapad: skapad(-6, 10),
     rotAvdrag: true,
     utfort: true,
-    planeratArbete: "Köksblandaren droppar. Byta vattenlås under diskbänken samtidigt.",
-    utfortArbete: "Bytt köksblandare och vattenlås. Kunden köpte blandaren själv.",
-    anteckningar: "Kunden står för blandaren.",
+    planeratArbete:
+      "Köksblandaren droppar. Byta till blandare med diskmaskinsavstängning och ansluta kundens nya diskmaskin.",
+    utfortArbete:
+      "Bytt köksblandare och vattenlås. Anslutit diskmaskinen till blandarens avstängning och vattenlåsets avloppsanslutning. Lagt golvskydd under maskinen.",
     artiklar: [
-      { namn: "Vattenlås diskbänk 32 mm", aterforsaljare: "Ahlsell", inkopspris: 185, pris: 259, antal: 1, enhet: "ST" },
-      { namn: "Flexslang 10 mm 500 mm", aterforsaljare: "Ahlsell", inkopspris: 62.5, pris: 89, antal: 2, enhet: "ST" },
+      AHL.koksblandareOras(),
+      AHL.kommodvattenlas(),
+      AHL.golvskyddDiskmaskin(),
     ],
-    arbetspass: [{ datum: dag(-4), timmar: 2.25 }],
+    arbetspass: [{ datum: dag(-4), timmar: 3 }],
     resor: [{ datum: dag(-4), stracka: 18 }],
   },
   {
@@ -522,7 +563,9 @@ const jobb = [
     planeratArbete: "Installera diskmaskin, dra nytt kallvatten och avlopp till ny plats i köket.",
     utfortArbete: "Kallvatten framdraget. Väntar på att köksbänken monteras.",
     artiklar: [
-      { namn: "Diskmaskinsventil 15 mm", aterforsaljare: "Ahlsell", inkopspris: 165, pris: 235, antal: 1, enhet: "ST" },
+      AHL.diskmaskinsventil(),
+      AHL.grenrorDiskmaskin(),
+      AHL.golvskyddDiskmaskin(),
       { namn: "Kopparrör 15 mm", aterforsaljare: "Ahlsell", inkopspris: 59, pris: 85, antal: 2.5, enhet: "M" },
     ],
     arbetspass: [{ datum: dag(-2), timmar: 1.5 }],
@@ -704,7 +747,9 @@ const jobb = [
       "Dragit nya rör till kök, anslutit diskbänk och diskmaskin. Flyttat tvättmaskin, ny golvbrunn och tvättbänk i källaren.",
     internaAnteckningar: "Kunden är nära ROT-taket – prata om att dela avdraget med frun.",
     artiklar: [
-      art("Köksblandare med diskmaskinsavstängning", 1450, 1990),
+      AHL.koksblandareGbg(),
+      AHL.kommodvattenlas(),
+      AHL.golvskyddDiskmaskin(),
       art("Golvbrunn 110 mm med klämring", 1420, 1890),
       art("Tvättbänk rostfri", 2190, 2890),
       art("PEX-rör 15 mm i skyddsrör", 31, 45, 18, "M"),
@@ -779,6 +824,9 @@ const jobb = [
       artiklar: [
         art("Varmvattenberedare 100 l", 5900, 7690),
         art("Vägghängd WC med fixtur", 4990, 5990, 2),
+        AHL.koksblandareOras(),
+        AHL.kommodvattenlas(),
+        AHL.golvskyddDiskmaskin(),
       ],
       ...flerDagar(manad(1, 6), [9, 9], 30),
     }),
@@ -924,8 +972,8 @@ const jobb = [
       timmar: 3,
       km: 18,
       planeratArbete: "Byte av toalettstol.",
-      utfortArbete: "Monterat ny toalettstol.",
-      artiklar: [art("Toalettstol golvstående med mjukstängande sits", 2450, 3200)],
+      utfortArbete: "Monterat ny toalettstol med ny WC-anslutning och avstängningsventil.",
+      artiklar: [AHL.wcIfo(), AHL.wcAnslutning(), AHL.wcAvstangning(), AHL.silikon()],
     }),
   },
   {
@@ -949,7 +997,7 @@ const jobb = [
       km: 4,
       planeratArbete: "Byta blandare och vattenlås i disken.",
       utfortArbete: "Bytt två blandare och vattenlås.",
-      artiklar: [art("Köksblandare med diskmaskinsavstängning", 1450, 1990, 2)],
+      artiklar: [{ ...AHL.koksblandareUtanDm(), antal: 2 }],
     }),
   },
   {
@@ -1019,14 +1067,45 @@ const offerter = [
     offertdatum: dag(0),
     giltigTill: dag(30),
     rotAvdrag: true,
-    fastPris: 6900,
+    // Material 4 406,03 kr (utpris) + arbete 3 400 kr ≈ 7 900 kr
+    fastPris: 7900,
     // ROT räknas bara på arbetsdelen av det fasta priset
     fastPrisArbete: 3400,
     beskrivning:
       "Byte av toalettstol. Demontering och bortforsling av gammal toalett, montering av ny golvstående toalett med mjukstängande sits och ny anslutning till avlopp och kallvatten.",
     villkor: "Fast pris inklusive material.",
     artiklar: [
-      { namn: "Toalettstol golvstående med mjukstängande sits", aterforsaljare: "Ahlsell", inkopspris: 2450, pris: 3200, antal: 1, enhet: "ST" },
+      AHL.wcAcoll(),
+      AHL.wcSitsSoftClose(),
+      AHL.wcAnslutning(),
+      AHL.wcAvstangning(),
+      AHL.silikon(),
+    ],
+  },
+  {
+    // Toalett, köksblandare och diskmaskin i samma offert, löpande räkning
+    id: "kok-wc-gunilla",
+    nummer: 9007,
+    kund: "gunilla",
+    status: "skickad",
+    offertdatum: dag(-2),
+    giltigTill: dag(28),
+    rotAvdrag: true,
+    beraknadeTimmar: 7,
+    beraknadStracka: 8,
+    beskrivning:
+      "Byte av toalettstol i nedre WC med ny WC-anslutning och avstängningsventil. Ny köksblandare med diskmaskinsavstängning, nytt vattenlås med avloppsanslutning och installation av diskmaskin med golvskydd.",
+    villkor:
+      "Diskmaskinen köps av kunden. Arbetet debiteras löpande; beräknad tid är en uppskattning.",
+    internaAnteckningar: "Gunilla vill helst ha det gjort före jul.",
+    artiklar: [
+      AHL.wcIfo(),
+      AHL.wcAnslutning(),
+      AHL.wcAvstangning(),
+      AHL.silikon(),
+      AHL.koksblandareOras(),
+      AHL.kommodvattenlas(),
+      AHL.golvskyddDiskmaskin(),
     ],
   },
   {
