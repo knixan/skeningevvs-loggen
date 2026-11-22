@@ -12,7 +12,9 @@
 //   obetalda och ett jobb som är markerat fakturerat utan faktura),
 // - ROT-taket: Anders går över taket med köksjobbet, Erik kommer nära,
 // - omvänd byggmoms: Östgöta Bygg (med momsreg.nr) och Vadstena Tak & Plåt
-//   (utan – fakturan kan inte utfärdas).
+//   (utan – fakturan kan inte utfärdas),
+// - riktiga artiklar ur Ahlsells prislista (AHL nedan). En rad i Eriks
+//   badrum är köpt på Bauhaus, för att visa en annan återförsäljare.
 //
 // Personerna och företagen är påhittade:
 // - personnummer och org.nummer har med flit fel kontrollsiffra, så de kan
@@ -127,21 +129,17 @@ function skapadFore(datum, n) {
   return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 8, 15);
 }
 
-/** En artikel från Ahlsell. */
-function art(namn, inkopspris, pris, antal = 1, enhet = "ST") {
-  return { namn, aterforsaljare: "Ahlsell", inkopspris, pris, antal, enhet };
-}
-
 // Påslaget som föreslås i appen när en Ahlsell-artikel väljs (Inställningar)
 const PASLAG = 30;
 
 /**
  * En artikel ur den inlästa Ahlsell-prislistan (november 2026): artikelnummer,
- * benämning och nettopris som de står där, utpris med PASLAG – samma rad som
- * appen skapar när artikeln väljs i sökningen.
+ * benämning, enhet och nettopris (inköpspris) som de står där, och utpris med
+ * PASLAG – samma rad som appen skapar när artikeln väljs i sökningen.
+ * Returnerar en funktion som tar antalet: AHL.kopparror15(2.5).
  */
-function ahlsell(artikelnr, benamning, inkopspris, antal = 1, enhet = "ST") {
-  return {
+function ahlsell(artikelnr, benamning, inkopspris, enhet = "ST") {
+  return (antal = 1) => ({
     namn: benamning,
     artikelnr,
     aterforsaljare: "Ahlsell",
@@ -149,26 +147,76 @@ function ahlsell(artikelnr, benamning, inkopspris, antal = 1, enhet = "ST") {
     pris: utprisMedPaslag(inkopspris, PASLAG),
     antal,
     enhet,
-  };
+  });
 }
 
-// Artiklar som används i flera jobb och offerter
+// Artiklarna som testdatan använder, ur Ahlsells prislista
 const AHL = {
   // Toalett
-  wcIfo: () => ahlsell("7856902", "IFÖ SIGN WC 6860 WC-STOL VITINB. S-LÅS MJUKSITS", 4185),
-  wcAcoll: () => ahlsell("7856879", "A-COLLECTION WC-STOL 4, S-LÅS3/6L,HEL.CIST.EX.SITS,SKRUV", 2373.8),
-  wcSitsSoftClose: () => ahlsell("7821789", "A-COLLECTION HÅRD WC-SITS MEDSOFT-CLOSE, UNIVERSAL, VIT", 619.44),
-  wcAnslutning: () => ahlsell("2316847", "110MM PVC/PP/MA WC-ANSL. EXC.VIT MED WC-MANSCHETT OCH HUV", 99.45),
-  wcAvstangning: () => ahlsell("7925943", "IFÖ AVSTÄNGNINGSVENTIL - WC-STOL , Z96721", 184.42),
-  silikon: () => ahlsell("305103", "FOGMASSA SIKASIL-C OFFWHITE300ML BYGG O SANITETSSILIKON", 112.14),
+  wcIfo: ahlsell("7856902", "IFÖ SIGN WC 6860 WC-STOL VITINB. S-LÅS MJUKSITS", 4185),
+  wcAcoll: ahlsell("7856879", "A-COLLECTION WC-STOL 4, S-LÅS3/6L,HEL.CIST.EX.SITS,SKRUV", 2373.8),
+  wcSitsSoftClose: ahlsell("7821789", "A-COLLECTION HÅRD WC-SITS MEDSOFT-CLOSE, UNIVERSAL, VIT", 619.44),
+  wcAnslutning: ahlsell("2316847", "110MM PVC/PP/MA WC-ANSL. EXC.VIT MED WC-MANSCHETT OCH HUV", 99.45),
+  wcAvstangning: ahlsell("7925943", "IFÖ AVSTÄNGNINGSVENTIL - WC-STOL , Z96721", 184.42),
+  wcFixtur: ahlsell("8000297", "GEBERIT DUOFIX OMEGA WC FIXTUR12CM, HÖJD 82 CM, PEX ANSL", 4216.8),
+  wcSkalVagg: ahlsell("7763329V", "LAUFEN PRO-N VÄGG WC-SKÅL.MED MJUK SITS", 2618.2),
+  silikon: ahlsell("305103", "FOGMASSA SIKASIL-C OFFWHITE300ML BYGG O SANITETSSILIKON", 112.14),
   // Kök och diskmaskin
-  koksblandareOras: () => ahlsell("8310554", "ORAS SAGA KÖKSBLANDARE 3934FHÖG PIP. MED DM AVST.", 1894.06),
-  koksblandareGbg: () => ahlsell("8310776", "GBG KÖKSBLANDARE ATLANTIC MEDDM.AVST. HÖG PIP . KROM", 1938),
-  koksblandareUtanDm: () => ahlsell("8310553", "ORAS SAGA KÖKSBLANDARE 3933FHÖG PIP. UTAN DM AVST.", 1414.74),
-  kommodvattenlas: () => ahlsell("8074871", "CONTURA KOMMODVATTENLÅSM.FLEX SLANG & TM AVL.ANSL", 180.44),
-  diskmaskinsventil: () => ahlsell("8543992", "FMM 2295-1501 KULVENTIL 15VINKEL MED VRED", 235.79),
-  grenrorDiskmaskin: () => ahlsell("8082414", "32 GRENRÖR MED SLANG.ANSLINV.GG 32/40 FP 78500", 69.16),
-  golvskyddDiskmaskin: () => ahlsell("8039039", "AQUATEAM+ GD60 MONTERADGOLVSKYDD/DISKMASKIN 60CM", 197.12),
+  koksblandareOras: ahlsell("8310554", "ORAS SAGA KÖKSBLANDARE 3934FHÖG PIP. MED DM AVST.", 1894.06),
+  koksblandareGbg: ahlsell("8310776", "GBG KÖKSBLANDARE ATLANTIC MEDDM.AVST. HÖG PIP . KROM", 1938),
+  koksblandareUtanDm: ahlsell("8310553", "ORAS SAGA KÖKSBLANDARE 3933FHÖG PIP. UTAN DM AVST.", 1414.74),
+  kommodvattenlas: ahlsell("8074871", "CONTURA KOMMODVATTENLÅSM.FLEX SLANG & TM AVL.ANSL", 180.44),
+  diskmaskinsventil: ahlsell("8543992", "FMM 2295-1501 KULVENTIL 15VINKEL MED VRED", 235.79),
+  grenrorDiskmaskin: ahlsell("8082414", "32 GRENRÖR MED SLANG.ANSLINV.GG 32/40 FP 78500", 69.16),
+  golvskyddDiskmaskin: ahlsell("8039039", "AQUATEAM+ GD60 MONTERADGOLVSKYDD/DISKMASKIN 60CM", 197.12),
+  // Badrum och tvättstuga
+  tvattstallsblandare: ahlsell("8275634", "TVÄTTSTÄLLSBLANDARE M.POP-UP1-GREPP A-COLL. AZUR IV ECO", 969.9),
+  duschblandare: ahlsell("8351441", "GROHE GRT500 DUSCHBLANDARE150CC TERMOSTAT", 1830.18),
+  handdukstork: ahlsell("8684456", "ARROW HJÄLMAREN HANDDUKSTORK8011", 2132),
+  golvbrunn: ahlsell("7113928", "PURUS BRAGE 110 GOLVBRUNN AVPLAST", 514.08),
+  golvbrunnssil: ahlsell("7133876", "JAFO HÅRSIL TILL GOLVBRUNNAR150MM, RF 2333", 264.2),
+  tvattranna: ahlsell("7643000", "TVÄTTRÄNNA ROSTFR L=1200TR 120", 4704.7),
+  rorgenomforing: ahlsell("2986206", "RÖRGENOMFÖRING FÖR RÖR UTANSKYDDSRÖR 15-32MM, PURMO", 21.18),
+  // Rör, kopplingar och ventiler
+  kopparror15: ahlsell("1752105", "15x1.0 KOPPARRÖR RAKT L=5MEN1057 R290", 100.97, "M"),
+  kopparror22: ahlsell("1752108", "22x1,0 KOPPARRÖR RAKT L=5MEN1057 R290", 152.33, "M"),
+  kopparror28: ahlsell("1752110", "28x1,2 KOPPARRÖR RAKT L=5MEN1057 R290", 234.43, "M"),
+  klamring15: ahlsell("1926103", "15 KLÄMRINGSKOPPLING RAK CU-CUA-COLLECTION", 32.54),
+  klamring22: ahlsell("1926105", "22 KLÄMRINGSKOPPLING RAK CU-CUA-COLLECTION", 58.94),
+  pexRorIRor: ahlsell("2005158", "TAPPVATTEN RÖR-I-RÖR D16 L=50MSANIPEX CLASSIC 355447301", 40.61, "M"),
+  fordelarskap: ahlsell("1881315", "LK FÖRDELARSKÅP UNI 350350 X 550 X 95", 1313.76),
+  fordelare: ahlsell("1875807", "VATETTE FÖRDELARE 4-RÖRDY22xDY15(G15)", 199.04),
+  avloppsror110: ahlsell("2832010", "110X2000 PP RÖR MED 1 MUFFNORDIC. PIPELIFE", 302.72),
+  pemRor32: ahlsell("2522001", "32x3.0 PEM-RÖR SDR11 PN16L=50M PE100-RC BLÅ STRIPE", 25.8, "M"),
+  dagvattenror110: ahlsell("19039484", "110x6M PEH DAGVATTENRÖR KZMED MUFF PBB.55", 568.89),
+  kulventil22: ahlsell("5495066", "22 KULVENTIL AVI 1335S BLYFRIMÄSSING KLÄMRING PN16", 239.12),
+  kulventil28: ahlsell("5495067", "28 KULVENTIL AVI 1335S BLYFRIMÄSSING KLÄMRING PN16", 352.28),
+  rorisolering22: ahlsell("43801022", "AF/ARMAFLEX AF-1-022RÖRISOLERING 2M/ST", 54.72, "M"),
+  rorisolering32: ahlsell("19058087", "RÖRSKÅL 800 MULTI 32-38/201000MM (25M/FRP)(225M/PALL)", 77.56, "M"),
+  varmekabel: ahlsell("7066844", "VÄRMEKABEL DLC-120E, 3 M120W, FAS, NOLLA, JORD", 682.5),
+  utekran: ahlsell("4315004", "FMM VATTENUTKASTARE 400MM NYFROSTSÄKER, BV, M-NYCKEL", 1078.99),
+  // Varmvatten
+  beredare100: ahlsell("6933444", "COMPACT 100CU, NIBEVARMVATTENBEREDARE", 13019.6),
+  beredare200: ahlsell("6935106", "VARMVATTENBEREDAREOSO CUBIX C 200", 10260.8),
+  beredare300: ahlsell("6935107", "VARMVATTENBEREDAREOSO CUBIX C 300", 11236),
+  sakerhetsventil9bar: ahlsell("5075109", "SÄKERHETSVENTIL 1890-S PN109BAR/-10°C-+120°C", 144.76),
+  sakerhetsventilVarme: ahlsell("5075094V", 'SÄKERHETSVENTIL 1895-S PN10G1/2"X15MM 2,5BAR/-10°C-+120°C', 139.12),
+  blandningsventil22: ahlsell("4923580", "22 35-60GR BLANDNINGSVENTILESBE 8204  M KLÄMRINGSKOPPL", 692.24),
+  vvcPump: ahlsell("5806000", "STAR Z-NOVA VVC-PUMP, WILO1x230V 50HZ UTAN KOPPLINGAR", 2690.64),
+  // Värme
+  cirkulationspump: ahlsell("5746873", "ALPHA1 GO 25-60 130CIRKULATIONSPUMP, GRUNDFOS", 4154.25),
+  bergvarmepump: ahlsell("6249328", "F1245-8 CU NIBE VÄRMEPUMPMED VVB.", 73497.9),
+  expansionskarl: ahlsell("5539340", "25 liter XP-Bas ExpansionskärlG20 förtryck 1,5bar -10-120°C", 390.66),
+  koldbararsprit: ahlsell("74134240", "KÖLDBÄRARSPRIT KEMETYL 28%T-PRO KBS BIO 25L", 690.95),
+  radiator: ahlsell("6733170M", "PC22-6012 PURMO COMPACT", 3150.1),
+  termostatventil: ahlsell("4795815", "15 TERMOSTATVENTIL TRV3CALYPSO DN15 RAK", 231.86),
+  golvvarmeror: ahlsell("2418238", "UPONOR COMFORT PIPE PLUS 17X2240M", 20.57, "M"),
+  golvvarmefordelare4: ahlsell("2973152", "GOLVVÄRMEFÖRDELARE 4 SLINGORPURMO", 2331),
+  golvvarmefordelare6: ahlsell("2973154", "GOLVVÄRMEFÖRDELARE 6 SLINGORPURMO", 3034),
+  shuntgrupp: ahlsell("6247712", "SHUNTGRUPP 2 TBH, CTCDN20", 3010.8),
+  rumstermostat: ahlsell("2417287", "LK RUMSTERMOSTAT S1", 425.86),
+  // Storkök
+  fettavskiljare: ahlsell("5644259", "ACO BOX CONCEPT FETT INNE NS2FETTAVSKILJARE MED TÄTA LOCK", 39642.9),
 };
 
 /** Arbetspass och resor flera dagar i följd från `start`. */
@@ -413,11 +461,11 @@ const jobb = [
     utfortArbete:
       "Demonterat gammal beredare 200 l. Monterat ny 300 l med ny säkerhetsventil och blandningsventil. Provtryckt och kontrollerat.",
     artiklar: [
-      { namn: "Varmvattenberedare 300 l", artikelnr: "4417021", aterforsaljare: "Ahlsell", inkopspris: 9850, pris: 12800, antal: 1, enhet: "ST" },
-      { namn: "Säkerhetsventil 9 bar 15 mm", artikelnr: "4420355", aterforsaljare: "Ahlsell", inkopspris: 245, pris: 340, antal: 1, enhet: "ST" },
-      { namn: "Termostatisk blandningsventil 22 mm", artikelnr: "4421830", aterforsaljare: "Ahlsell", inkopspris: 1180, pris: 1590, antal: 1, enhet: "ST" },
-      { namn: "Kopparrör 22 mm", artikelnr: "1203422", aterforsaljare: "Ahlsell", inkopspris: 89, pris: 125, antal: 3.5, enhet: "M" },
-      { namn: "Klämringskoppling 22 mm", aterforsaljare: "Ahlsell", inkopspris: 48, pris: 69, antal: 6, enhet: "ST" },
+      AHL.beredare300(),
+      AHL.sakerhetsventil9bar(),
+      AHL.blandningsventil22(),
+      AHL.kopparror22(3.5),
+      AHL.klamring22(6),
     ],
     arbetspass: [
       { datum: dag(-38), timmar: 6 },
@@ -457,10 +505,11 @@ const jobb = [
     utfortArbete: "Rivning klar. Golvbrunn flyttad och ingjuten. Rördragning i vägg klar.",
     internaAnteckningar: "Plattsättare: Jonas, ring innan vi stänger väggen.",
     artiklar: [
-      { namn: "Golvbrunn 110 mm med klämring", artikelnr: "6012774", aterforsaljare: "Ahlsell", inkopspris: 1420, pris: 1890, antal: 1, enhet: "ST" },
-      { namn: "PEX-rör 15 mm i skyddsrör", aterforsaljare: "Ahlsell", inkopspris: 31, pris: 45, antal: 24, enhet: "M" },
-      { namn: "Fördelarskåp med 4 utgångar", aterforsaljare: "Ahlsell", inkopspris: 2350, pris: 3150, antal: 1, enhet: "ST" },
-      { namn: "Avloppsrör PP 110 mm", aterforsaljare: "Ahlsell", inkopspris: 118, pris: 165, antal: 4.5, enhet: "M" },
+      AHL.golvbrunn(),
+      AHL.pexRorIRor(24),
+      AHL.fordelarskap(),
+      AHL.fordelare(),
+      AHL.avloppsror110(3),
       { namn: "Vägghängd WC med fixtur", aterforsaljare: "Bauhaus", inkopspris: 4990, pris: 5990, antal: 1, enhet: "ST" },
     ],
     ovrigaKostnader: [
@@ -496,7 +545,7 @@ const jobb = [
     utfortArbete: "Spolat avloppsledning från tvättstuga till brunn. Bytt trasig rensbar golvbrunnssil.",
     internaAnteckningar: "Fakturan obetald – ring Gunilla och påminn.",
     artiklar: [
-      { namn: "Sil till golvbrunn 150 mm", aterforsaljare: "Ahlsell", inkopspris: 135, pris: 195, antal: 1, enhet: "ST" },
+      AHL.golvbrunnssil(),
     ],
     arbetspass: [{ datum: dag(-31), timmar: 2.5 }],
     resor: [{ datum: dag(-31), stracka: 4 }],
@@ -526,15 +575,16 @@ const jobb = [
     utfort: true,
     fakturerat: true,
     betalt: true,
-    fastPris: 8500,
-    // 8 500 − material 4 380 (3 790 + 590) = 4 120 kr arbete – ROT räknas på den
+    // Material 6 298,77 kr (5 400,53 + 898,24) + 4 120 kr arbete ≈ 10 420 kr.
+    // ROT räknas bara på arbetet.
+    fastPris: 10420,
     fastPrisArbete: 4120,
     planeratArbete: "Service av bergvärmepump och byte av cirkulationspump.",
     utfortArbete:
       "Service utförd: filter rengjorda, tryck kontrollerat, köldbärare påfylld. Bytt cirkulationspump på värmesidan.",
     artiklar: [
-      { namn: "Cirkulationspump 25-60", artikelnr: "5530118", aterforsaljare: "Ahlsell", inkopspris: 2890, pris: 3790, antal: 1, enhet: "ST" },
-      { namn: "Köldbärarvätska 10 l", aterforsaljare: "Ahlsell", inkopspris: 420, pris: 590, antal: 1, enhet: "ST" },
+      AHL.cirkulationspump(),
+      AHL.koldbararsprit(),
     ],
     arbetspass: [{ datum: dag(-25), timmar: 4 }],
     resor: [{ datum: dag(-25), stracka: 34 }],
@@ -548,9 +598,9 @@ const jobb = [
     utfortArbete: "Bytt 2 m frostsprängt rör och isolerat ledningen. Monterat värmekabel.",
     internaAnteckningar: "Kunden vill ha fakturan efter nyår.",
     artiklar: [
-      { namn: "PEM-rör 32 mm", aterforsaljare: "Ahlsell", inkopspris: 28, pris: 42, antal: 2, enhet: "M" },
-      { namn: "Värmekabel 4 m med termostat", aterforsaljare: "Ahlsell", inkopspris: 690, pris: 950, antal: 1, enhet: "ST" },
-      { namn: "Rörisolering 32 mm", aterforsaljare: "Ahlsell", inkopspris: 39, pris: 55, antal: 4, enhet: "M" },
+      AHL.pemRor32(2),
+      AHL.varmekabel(),
+      AHL.rorisolering32(4),
     ],
     arbetspass: [{ datum: dag(-8), timmar: 3 }],
     resor: [{ datum: dag(-8), stracka: 34 }],
@@ -566,7 +616,7 @@ const jobb = [
       AHL.diskmaskinsventil(),
       AHL.grenrorDiskmaskin(),
       AHL.golvskyddDiskmaskin(),
-      { namn: "Kopparrör 15 mm", aterforsaljare: "Ahlsell", inkopspris: 59, pris: 85, antal: 2.5, enhet: "M" },
+      AHL.kopparror15(2.5),
     ],
     arbetspass: [{ datum: dag(-2), timmar: 1.5 }],
     resor: [{ datum: dag(-2), stracka: 16 }],
@@ -582,9 +632,9 @@ const jobb = [
     utfortArbete: "Trapphus A och B klara.",
     internaAnteckningar: "Boka in trapphus C med Kent – han vill ha lapp i trapphuset en vecka innan.",
     artiklar: [
-      { namn: "Kulventil 28 mm", artikelnr: "4402128", aterforsaljare: "Ahlsell", inkopspris: 312, pris: 430, antal: 8, enhet: "ST" },
-      { namn: "Kulventil 22 mm", artikelnr: "4402122", aterforsaljare: "Ahlsell", inkopspris: 198, pris: 275, antal: 12, enhet: "ST" },
-      { namn: "Kopparrör 28 mm", aterforsaljare: "Ahlsell", inkopspris: 118, pris: 165, antal: 6, enhet: "M" },
+      AHL.kulventil28(8),
+      AHL.kulventil22(12),
+      AHL.kopparror28(6),
     ],
     arbetspass: [
       { datum: dag(-9), timmar: 7 },
@@ -604,9 +654,9 @@ const jobb = [
     fakturerat: true,
     betalt: true,
     planeratArbete: "Årlig service av fjärrvärmens undercentral.",
-    utfortArbete: "Service utförd. Bytt packning på värmeväxlare. Inga anmärkningar.",
+    utfortArbete: "Service utförd. Bytt säkerhetsventil på värmesidan. Inga anmärkningar.",
     artiklar: [
-      { namn: "Packningssats värmeväxlare", aterforsaljare: "Ahlsell", inkopspris: 540, pris: 720, antal: 1, enhet: "ST" },
+      AHL.sakerhetsventilVarme(),
     ],
     arbetspass: [{ datum: dag(-58), timmar: 3 }],
     resor: [{ datum: dag(-58), stracka: 3 }],
@@ -630,8 +680,8 @@ const jobb = [
     planeratArbete: "Läckage från lägenhet 3 ner i lägenhet 1, Storgatan 31.",
     utfortArbete: "Lokaliserat läcka i rörgenomföring i badrum lgh 3. Bytt genomföring och tätat. Fuktmätt – torkas av försäkringsbolaget.",
     artiklar: [
-      { namn: "Rörgenomföring våtrum 15 mm", aterforsaljare: "Ahlsell", inkopspris: 89, pris: 129, antal: 2, enhet: "ST" },
-      { namn: "Våtrumssilikon", aterforsaljare: "Ahlsell", inkopspris: 95, pris: 139, antal: 1, enhet: "ST" },
+      AHL.rorgenomforing(2),
+      AHL.silikon(),
     ],
     ovrigaKostnader: [{ beskrivning: "Jourtillägg kväll", pris: 950 }],
     arbetspass: [{ datum: dag(-15), timmar: 2.75 }],
@@ -642,12 +692,13 @@ const jobb = [
     kund: "pensionat",
     skapad: skapad(-9, 8),
     pagaende: true,
-    fastPris: 18400,
-    planeratArbete: "Byta tvättställsblandare och duschset i 6 rum. Fast pris enligt offert.",
+    // Material 21 840,60 kr + arbete ca 11 700 kr (18 h)
+    fastPris: 33500,
+    planeratArbete: "Byta tvättställsblandare och duschblandare i 6 rum. Fast pris enligt offert.",
     utfortArbete: "Rum 1–4 klara.",
     artiklar: [
-      { namn: "Tvättställsblandare", aterforsaljare: "Ahlsell", inkopspris: 890, pris: 1190, antal: 6, enhet: "ST" },
-      { namn: "Duschset med termostatblandare", aterforsaljare: "Ahlsell", inkopspris: 1650, pris: 2190, antal: 6, enhet: "ST" },
+      AHL.tvattstallsblandare(6),
+      AHL.duschblandare(6),
     ],
     arbetspass: [
       { datum: dag(-7), timmar: 7 },
@@ -667,7 +718,7 @@ const jobb = [
     utfortArbete: "Stängt av huvudkran och bytt sprucken koppling.",
     anteckningar: "Kunden ej registrerad – lägg upp kund innan fakturering.",
     artiklar: [
-      { namn: "Klämringskoppling 15 mm", aterforsaljare: "Ahlsell", inkopspris: 32, pris: 49, antal: 2, enhet: "ST" },
+      AHL.klamring15(2),
     ],
     arbetspass: [{ datum: dag(-11), timmar: 1.5 }],
     resor: [{ datum: dag(-11), stracka: 9 }],
@@ -682,7 +733,7 @@ const jobb = [
     planeratArbete: "Byte av varmvattenberedare i bageriets disk.",
     utfortArbete: "Bytt beredare 100 l.",
     anteckningar: "Fakturerad för hand i Excel innan appen fanns.",
-    artiklar: [art("Varmvattenberedare 100 l", 5900, 7690)],
+    artiklar: [AHL.beredare100()],
     arbetspass: [{ datum: dag(-48), timmar: 3 }],
     resor: [{ datum: dag(-48), stracka: 4 }],
   },
@@ -703,12 +754,14 @@ const jobb = [
     utfortArbete:
       "Rivit gammalt, nya tappvattenrör och avlopp i vägg, ny golvbrunn, monterat WC, tvättställ, duschblandare och handdukstork.",
     artiklar: [
-      art("Golvbrunn 110 mm med klämring", 1420, 1890),
-      art("PEX-rör 15 mm i skyddsrör", 31, 45, 30, "M"),
-      art("Fördelarskåp med 4 utgångar", 2350, 3150),
-      art("Vägghängd WC med fixtur", 4990, 5990),
-      art("Duschset med termostatblandare", 1650, 2190),
-      art("Handdukstork vattenburen", 1890, 2490),
+      AHL.golvbrunn(),
+      AHL.pexRorIRor(30),
+      AHL.fordelarskap(),
+      AHL.fordelare(),
+      AHL.wcFixtur(),
+      AHL.wcSkalVagg(),
+      AHL.duschblandare(),
+      AHL.handdukstork(),
     ],
     ...flerDagar(iAr(7, 6), [8.5, 8.5, 8.5, 8.5, 8.5, 8.5, 8.5, 8.5], 22),
     faktura: plusDagar(iAr(7, 6), 10),
@@ -721,17 +774,19 @@ const jobb = [
     utfort: true,
     fakturerat: true,
     betalt: true,
-    fastPris: 145000,
+    // Material 103 629,29 kr + 64 000 kr arbete ≈ 167 630 kr
+    fastPris: 167630,
     // ROT: 64 000 × 1,25 × 30 % = 24 000 kr
     fastPrisArbete: 64000,
     planeratArbete: "Byte från oljepanna till bergvärme. Borrning görs av annan firma.",
     utfortArbete:
-      "Demonterat oljepanna. Installerat bergvärmepump 10 kW med inbyggd beredare, anslutit kollektor och värmesystem. Injusterat och provkört.",
+      "Demonterat oljepanna. Installerat bergvärmepump 8 kW med inbyggd beredare, anslutit kollektor och värmesystem. Injusterat och provkört.",
     artiklar: [
-      art("Bergvärmepump 10 kW med beredare", 54900, 69900),
-      art("Expansionskärl 25 l", 1790, 2400),
-      art("Köldbärarvätska 10 l", 420, 590, 8),
-      art("Rör och kopplingar, sats", 2980, 3980),
+      AHL.bergvarmepump(),
+      AHL.expansionskarl(),
+      AHL.koldbararsprit(3),
+      AHL.kopparror28(10),
+      AHL.kulventil28(4),
     ],
     ...flerDagar(iAr(3, 12), [9, 9, 8, 6], 22),
     faktura: plusDagar(iAr(3, 12), 4),
@@ -744,15 +799,15 @@ const jobb = [
     utfort: true,
     planeratArbete: "VVS till nytt kök och flytt av tvättstugan till källaren.",
     utfortArbete:
-      "Dragit nya rör till kök, anslutit diskbänk och diskmaskin. Flyttat tvättmaskin, ny golvbrunn och tvättbänk i källaren.",
+      "Dragit nya rör till kök, anslutit diskbänk och diskmaskin. Flyttat tvättmaskin, ny golvbrunn och tvättränna i källaren.",
     internaAnteckningar: "Kunden är nära ROT-taket – prata om att dela avdraget med frun.",
     artiklar: [
       AHL.koksblandareGbg(),
       AHL.kommodvattenlas(),
       AHL.golvskyddDiskmaskin(),
-      art("Golvbrunn 110 mm med klämring", 1420, 1890),
-      art("Tvättbänk rostfri", 2190, 2890),
-      art("PEX-rör 15 mm i skyddsrör", 31, 45, 18, "M"),
+      AHL.golvbrunn(),
+      AHL.tvattranna(),
+      AHL.pexRorIRor(18),
     ],
     // 44 h × 650 × 1,25 × 30 % = 10 725 kr ROT
     ...flerDagar(dag(-14), [8, 9, 9, 9, 9], 22),
@@ -766,16 +821,17 @@ const jobb = [
     utfort: true,
     fakturerat: true,
     betalt: true,
-    fastPris: 112000,
+    // Material 42 062,89 kr + 88 000 kr arbete ≈ 130 060 kr
+    fastPris: 130060,
     // ROT: 88 000 × 1,25 × 30 % = 33 000 kr
     fastPrisArbete: 88000,
     planeratArbete: "Byte av alla radiatorer och nya rör i hela huset.",
     utfortArbete:
       "Bytt 9 radiatorer med termostatventiler, dragit nya rör i hela huset, spolat och injusterat systemet.",
     artiklar: [
-      art("Radiator 600×1200", 1650, 2200, 9),
-      art("Termostatventil med ratt", 210, 290, 9),
-      art("Kopparrör 15 mm", 59, 85, 19, "M"),
+      AHL.radiator(9),
+      AHL.termostatventil(9),
+      AHL.kopparror15(19),
     ],
     ...flerDagar(iAr(5, 14), [8, 8, 8, 8, 8], 26),
     faktura: plusDagar(iAr(5, 14), 7),
@@ -790,9 +846,10 @@ const jobb = [
       planeratArbete: "UE: VVS i 4 lägenheter, Hamngatan 12 i Mjölby.",
       utfortArbete: "Rördragning, golvbrunnar och montering av porslin i 4 lägenheter.",
       artiklar: [
-        art("Golvbrunn 110 mm med klämring", 1420, 1890, 4),
-        art("Vägghängd WC med fixtur", 4990, 5990, 4),
-        art("PEX-rör 15 mm i skyddsrör", 31, 45, 80, "M"),
+        AHL.golvbrunn(4),
+        AHL.wcFixtur(4),
+        AHL.wcSkalVagg(4),
+        AHL.pexRorIRor(80),
       ],
       ...flerDagar(manad(11, 10), [8, 8, 8, 8, 8], 30),
     }),
@@ -805,9 +862,10 @@ const jobb = [
       planeratArbete: "UE: rördragning radhus etapp 2, 6 hus.",
       utfortArbete: "Tappvatten och avlopp i 6 radhus. Provtryckt.",
       artiklar: [
-        art("Fördelarskåp med 4 utgångar", 2350, 3150, 6),
-        art("PEX-rör 15 mm i skyddsrör", 31, 45, 140, "M"),
-        art("Avloppsrör PP 110 mm", 118, 165, 36, "M"),
+        AHL.fordelarskap(6),
+        AHL.fordelare(6),
+        AHL.pexRorIRor(140),
+        AHL.avloppsror110(18),
       ],
       ...flerDagar(manad(5, 12), [8, 8, 8, 8, 8, 8, 8], 30),
     }),
@@ -822,8 +880,9 @@ const jobb = [
       planeratArbete: "UE: VVS i ny lunchlokal, Tuna industriområde.",
       utfortArbete: "Diskbänk, diskmaskin, varmvattenberedare och två WC.",
       artiklar: [
-        art("Varmvattenberedare 100 l", 5900, 7690),
-        art("Vägghängd WC med fixtur", 4990, 5990, 2),
+        AHL.beredare100(),
+        AHL.wcFixtur(2),
+        AHL.wcSkalVagg(2),
         AHL.koksblandareOras(),
         AHL.kommodvattenlas(),
         AHL.golvskyddDiskmaskin(),
@@ -840,9 +899,9 @@ const jobb = [
     planeratArbete: "UE: VVS i nybyggd villa, Lillgatan 3 i Skänninge.",
     utfortArbete: "Komplett VVS-installation enligt ritning.",
     artiklar: [
-      art("Golvvärmerör PE-RT 17 mm", 9.5, 14, 300, "M"),
-      art("Golvvärmefördelare 6 kretsar", 3690, 4790),
-      art("Varmvattenberedare 200 l", 7900, 10200),
+      AHL.golvvarmeror(300),
+      AHL.golvvarmefordelare6(),
+      AHL.beredare200(),
     ],
     ...flerDagar(dag(-8), [8, 8, 8, 6], 16),
   },
@@ -855,7 +914,7 @@ const jobb = [
     planeratArbete: "UE: anslutning av stuprör till dagvatten, Klosterområdet.",
     utfortArbete: "Anslutit 4 stuprör till dagvattenledning.",
     anteckningar: "Kundens momsreg.nr saknas – fråga Nils.",
-    artiklar: [art("Dagvattenrör PVC 110 mm", 95, 135, 12, "M")],
+    artiklar: [AHL.dagvattenror110(2)],
     arbetspass: [{ datum: dag(-5), timmar: 5 }],
     resor: [{ datum: dag(-5), stracka: 28 }],
   },
@@ -871,7 +930,7 @@ const jobb = [
       planeratArbete: "Byte av cirkulationspumpar i undercentralen, Storgatan 31.",
       utfortArbete: "Bytt två cirkulationspumpar och injusterat.",
       anteckningar: "Första fakturan hade 9 timmar för mycket – krediterad.",
-      artiklar: [art("Cirkulationspump 25-60", 2890, 3790, 2)],
+      artiklar: [AHL.cirkulationspump(2)],
       ...flerDagar(manad(2, 9), [6, 6], 22),
     }),
     kreditering: { extraTimmar: 9, dagarEfter: 8 },
@@ -888,7 +947,7 @@ const jobb = [
       km: 12,
       planeratArbete: "Byte av duschblandare.",
       utfortArbete: "Bytt duschblandare till termostatblandare.",
-      artiklar: [art("Duschset med termostatblandare", 1650, 2190)],
+      artiklar: [AHL.duschblandare()],
     }),
   },
   {
@@ -900,7 +959,7 @@ const jobb = [
       km: 4,
       planeratArbete: "Stopp i avloppet från disken.",
       utfortArbete: "Spolat avlopp och bytt vattenlås.",
-      artiklar: [art("Vattenlås diskbänk 32 mm", 185, 259, 2)],
+      artiklar: [AHL.kommodvattenlas(2)],
     }),
   },
   {
@@ -910,7 +969,7 @@ const jobb = [
       datum: manad(14, 20),
       planeratArbete: "Förberedelse inför stambyte, Storgatan 31.",
       utfortArbete: "Inventerat stammar, monterat nya avstängningsventiler i källaren.",
-      artiklar: [art("Kulventil 28 mm", 312, 430, 6), art("Kopparrör 28 mm", 118, 165, 8, "M")],
+      artiklar: [AHL.kulventil28(6), AHL.kopparror28(8)],
       ...flerDagar(manad(14, 20), [8, 8], 22),
     }),
   },
@@ -924,7 +983,7 @@ const jobb = [
       km: 4,
       planeratArbete: "Byta element i vardagsrummet.",
       utfortArbete: "Bytt radiator och termostatventil.",
-      artiklar: [art("Radiator 600×1200", 1650, 2200), art("Termostatventil med ratt", 210, 290)],
+      artiklar: [AHL.radiator(), AHL.termostatventil()],
     }),
   },
   {
@@ -936,7 +995,7 @@ const jobb = [
       km: 28,
       planeratArbete: "Nya avstängningsventiler i köket.",
       utfortArbete: "Bytt 6 ventiler under diskbänkar och spis.",
-      artiklar: [art("Kulventil 22 mm", 198, 275, 6)],
+      artiklar: [AHL.kulventil22(6)],
     }),
   },
   {
@@ -948,7 +1007,7 @@ const jobb = [
       km: 28,
       planeratArbete: "Frusen ledning i tvättstugan.",
       utfortArbete: "Tinat och isolerat ledningen.",
-      artiklar: [art("Rörisolering 22 mm", 29, 45, 6, "M")],
+      artiklar: [AHL.rorisolering22(6)],
     }),
   },
   {
@@ -960,7 +1019,7 @@ const jobb = [
       km: 3,
       planeratArbete: "Läcka i källaren.",
       utfortArbete: "Bytt 1,5 m kopparrör och två kopplingar.",
-      artiklar: [art("Kopparrör 22 mm", 89, 125, 1.5, "M"), art("Klämringskoppling 22 mm", 48, 69, 2)],
+      artiklar: [AHL.kopparror22(1.5), AHL.klamring22(2)],
     }),
   },
   {
@@ -985,7 +1044,7 @@ const jobb = [
       km: 22,
       planeratArbete: "Byte av varmvattenberedare i tvättstugan.",
       utfortArbete: "Bytt beredare 200 l.",
-      artiklar: [art("Varmvattenberedare 200 l", 7900, 10200)],
+      artiklar: [AHL.beredare200()],
     }),
   },
   {
@@ -997,7 +1056,7 @@ const jobb = [
       km: 4,
       planeratArbete: "Byta blandare och vattenlås i disken.",
       utfortArbete: "Bytt två blandare och vattenlås.",
-      artiklar: [{ ...AHL.koksblandareUtanDm(), antal: 2 }],
+      artiklar: [AHL.koksblandareUtanDm(2)],
     }),
   },
   {
@@ -1010,7 +1069,7 @@ const jobb = [
       km: 12,
       planeratArbete: "Frostfri utekran.",
       utfortArbete: "Monterat frostfri utekran på baksidan.",
-      artiklar: [art("Utekran frostfri 300 mm", 690, 950)],
+      artiklar: [AHL.utekran()],
     }),
   },
   {
@@ -1023,7 +1082,7 @@ const jobb = [
       km: 28,
       planeratArbete: "Varmvattencirkulationen fungerar dåligt.",
       utfortArbete: "Bytt VVC-pump.",
-      artiklar: [art("VVC-pump", 1890, 2490)],
+      artiklar: [AHL.vvcPump()],
     }),
   },
 ];
@@ -1053,10 +1112,10 @@ const offerter = [
       "Gjutning och golvbeläggning ingår inte. Eventuella tilläggsarbeten debiteras löpande enligt timpris.",
     internaAnteckningar: "Utan shuntgrupp blir det ca 4 800 kr billigare – kunden funderar.",
     artiklar: [
-      { namn: "Golvvärmerör PE-RT 17 mm", aterforsaljare: "Ahlsell", inkopspris: 9.5, pris: 14, antal: 220, enhet: "M" },
-      { namn: "Golvvärmefördelare 4 kretsar", aterforsaljare: "Ahlsell", inkopspris: 2890, pris: 3790, antal: 1, enhet: "ST" },
-      { namn: "Shuntgrupp med cirkulationspump", aterforsaljare: "Ahlsell", inkopspris: 3650, pris: 4790, antal: 1, enhet: "ST" },
-      { namn: "Rumstermostat trådlös", aterforsaljare: "Ahlsell", inkopspris: 640, pris: 890, antal: 2, enhet: "ST" },
+      AHL.golvvarmeror(220),
+      AHL.golvvarmefordelare4(),
+      AHL.shuntgrupp(),
+      AHL.rumstermostat(2),
     ],
   },
   {
@@ -1123,8 +1182,8 @@ const offerter = [
     villkor:
       "Bygganmälan görs av beställaren. Grävning och återfyllning ingår inte.",
     artiklar: [
-      { namn: "Fettavskiljare 2 l/s med provtagningsbrunn", aterforsaljare: "Ahlsell", inkopspris: 22400, pris: 28900, antal: 1, enhet: "ST" },
-      { namn: "Avloppsrör PP 110 mm", aterforsaljare: "Ahlsell", inkopspris: 118, pris: 165, antal: 8, enhet: "M" },
+      AHL.fettavskiljare(),
+      AHL.avloppsror110(4),
     ],
     ovrigaKostnader: [{ beskrivning: "Frakt fettavskiljare", pris: 1450 }],
   },
@@ -1144,9 +1203,10 @@ const offerter = [
       "Badrumsrenovering, VVS-delen: rivning av gammalt, flytt av golvbrunn, nya rör i vägg med fördelarskåp, montering av vägghängd WC, handfat och duschblandare.",
     villkor: "Plattsättning ingår inte och utförs av annan entreprenör.",
     artiklar: [
-      { namn: "Golvbrunn 110 mm med klämring", artikelnr: "6012774", aterforsaljare: "Ahlsell", inkopspris: 1420, pris: 1890, antal: 1, enhet: "ST" },
-      { namn: "PEX-rör 15 mm i skyddsrör", aterforsaljare: "Ahlsell", inkopspris: 31, pris: 45, antal: 24, enhet: "M" },
-      { namn: "Fördelarskåp med 4 utgångar", aterforsaljare: "Ahlsell", inkopspris: 2350, pris: 3150, antal: 1, enhet: "ST" },
+      AHL.golvbrunn(),
+      AHL.pexRorIRor(24),
+      AHL.fordelarskap(),
+      AHL.fordelare(),
       { namn: "Vägghängd WC med fixtur", aterforsaljare: "Bauhaus", inkopspris: 4990, pris: 5990, antal: 1, enhet: "ST" },
     ],
     ovrigaKostnader: [{ beskrivning: "Container för rivningsmassor", pris: 1850 }],
@@ -1179,9 +1239,10 @@ const offerter = [
       "UE: VVS-installation i ny förskola, Väderstad. Tappvatten, avlopp, golvvärme och anslutning av storköksutrustning.",
     villkor: "Omvänd betalningsskyldighet för byggtjänster gäller.",
     artiklar: [
-      { namn: "Golvvärmerör PE-RT 17 mm", aterforsaljare: "Ahlsell", inkopspris: 9.5, pris: 14, antal: 900, enhet: "M" },
-      { namn: "Golvvärmefördelare 6 kretsar", aterforsaljare: "Ahlsell", inkopspris: 3690, pris: 4790, antal: 3, enhet: "ST" },
-      { namn: "Vägghängd WC med fixtur", aterforsaljare: "Bauhaus", inkopspris: 4990, pris: 5990, antal: 6, enhet: "ST" },
+      AHL.golvvarmeror(900),
+      AHL.golvvarmefordelare6(3),
+      AHL.wcFixtur(6),
+      AHL.wcSkalVagg(6),
     ],
   },
 ];
