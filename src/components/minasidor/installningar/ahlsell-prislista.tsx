@@ -36,6 +36,8 @@ export type AhlsellStatus = {
   importeradVid: string | null;
   avtalInlast: boolean;
   avtalSlutdatum: string;
+  grundFilnamn: string;
+  avtalFilnamn: string;
   materialPaslag: number;
 };
 
@@ -168,6 +170,8 @@ function InlasningForm({ status }: { status: AhlsellStatus }) {
       const klar = await slutforAhlsellImport(start.importId, {
         avtalInlast: Boolean(avtal),
         avtalSlutdatum: avtal?.slutdatum ?? "",
+        grundFilnamn: grundFil?.name ?? null,
+        avtalFilnamn: avtalFil?.name ?? "",
       });
       if (!klar.ok) {
         toast.error(klar.error);
@@ -230,11 +234,16 @@ function InlasningForm({ status }: { status: AhlsellStatus }) {
               {tal(status.antalArtiklar)} artiklar inlästa{" "}
               {new Date(status.importeradVid).toLocaleDateString("sv-SE")}
             </p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {status.avtalInlast
-                ? `Med era avtalspriser${slutdatum ? ` · avtalet gäller t.o.m. ${slutdatum}` : ""}`
-                : "Grundpriser – ingen avtalsfil inläst"}
-            </p>
+            <dl className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs">
+              <dt className="text-muted-foreground">Beräkningsgrund</dt>
+              <dd className="break-all">{status.grundFilnamn || "inläst"}</dd>
+              <dt className="text-muted-foreground">Avtalsfil</dt>
+              <dd className="break-all">
+                {status.avtalInlast
+                  ? `${status.avtalFilnamn || "inläst"}${slutdatum ? ` · gäller t.o.m. ${slutdatum}` : ""}`
+                  : "Ingen – grundpriser, före era rabatter"}
+              </dd>
+            </dl>
             {avtalUtgatt && (
               <p className="text-xs font-medium text-destructive mt-1">
                 Avtalet har gått ut – beställ en ny avtalsfil och läs in den.

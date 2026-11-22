@@ -93,12 +93,22 @@ export async function sparaAhlsellDel(importId: string, rader: unknown) {
   return { ok: true as const };
 }
 
+// Filnamnet visas bara som text; ett för långt namn kortas i stället för att
+// stoppa inläsningen.
+const filnamnSchema = z
+  .string()
+  .trim()
+  .transform((s) => s.slice(0, 200));
+
 const slutforSchema = z.object({
   avtalInlast: z.boolean(),
   avtalSlutdatum: z
     .string()
     .regex(/^(\d{6})?$/)
     .default(""),
+  // null = ingen ny beräkningsgrund (bara nytt avtal), det sparade namnet behålls
+  grundFilnamn: filnamnSchema.nullable(),
+  avtalFilnamn: filnamnSchema.default(""),
 });
 
 export async function slutforAhlsellImport(
@@ -131,6 +141,9 @@ export async function slutforAhlsellImport(
         ahlsellAntalArtiklar: antal,
         ahlsellAvtalInlast: meta.data.avtalInlast,
         ahlsellAvtalSlutdatum: meta.data.avtalSlutdatum,
+        // undefined = fältet lämnas orört
+        ahlsellGrundFilnamn: meta.data.grundFilnamn ?? undefined,
+        ahlsellAvtalFilnamn: meta.data.avtalInlast ? meta.data.avtalFilnamn : "",
       },
     });
   } catch {
@@ -232,6 +245,8 @@ export async function rensaAhlsellPrislista() {
         ahlsellAntalArtiklar: 0,
         ahlsellAvtalInlast: false,
         ahlsellAvtalSlutdatum: "",
+        ahlsellGrundFilnamn: "",
+        ahlsellAvtalFilnamn: "",
       },
     });
     await prisma.ahlsellArtikel.deleteMany({

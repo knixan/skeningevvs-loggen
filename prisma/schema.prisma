@@ -118,6 +118,10 @@ model Company {
   ahlsellAvtalInlast    Boolean   @default(false)
   // Avtalets slutdatum som det står i avtalsfilen (ÅÅMMDD), tomt om okänt
   ahlsellAvtalSlutdatum String    @default("")
+  // Namnen på filerna som lästes in, så att man ser vilka som gäller. Tomt
+  // om okänt (listor inlästa före fälten fanns) eller ingen avtalsfil.
+  ahlsellGrundFilnamn   String    @default("")
+  ahlsellAvtalFilnamn   String    @default("")
   // Påslag i procent som föreslås som utpris när en Ahlsell-artikel väljs
   materialPaslag        Float     @default(0)
 

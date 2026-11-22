@@ -32,6 +32,8 @@ async function InstallningarInnehall() {
       ahlsellImporteradVid: true,
       ahlsellAvtalInlast: true,
       ahlsellAvtalSlutdatum: true,
+      ahlsellGrundFilnamn: true,
+      ahlsellAvtalFilnamn: true,
       materialPaslag: true,
     },
   });
@@ -45,6 +47,8 @@ async function InstallningarInnehall() {
           importeradVid: company?.ahlsellImporteradVid?.toISOString() ?? null,
           avtalInlast: company?.ahlsellAvtalInlast ?? false,
           avtalSlutdatum: company?.ahlsellAvtalSlutdatum ?? "",
+          grundFilnamn: company?.ahlsellGrundFilnamn ?? "",
+          avtalFilnamn: company?.ahlsellAvtalFilnamn ?? "",
           materialPaslag: company?.materialPaslag ?? 0,
         }}
       />
