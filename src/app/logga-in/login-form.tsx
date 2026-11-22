@@ -52,18 +52,17 @@ export function LoginForm() {
 
   return (
     <Card className="w-full max-w-md rounded-2xl shadow-xs">
-          <Image
-                src="/skeningevvs-faktura-logga.png"
-                alt="Skeninge VVS logotyp"
-                width={300}
-                height={300}
-                className="h-48 w-48 object-contain"
-                priority
-              />
+      <Image
+        src="/skeningevvs-faktura-logga.png"
+        alt="Skeninge VVS logotyp"
+        width={300}
+        height={300}
+        className="mx-auto h-48 w-48 object-contain"
+        priority
+      />
       <CardHeader>
         <CardTitle className="text-2xl">Logga in</CardTitle>
       </CardHeader>
-       
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
