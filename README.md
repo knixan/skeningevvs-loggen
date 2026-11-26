@@ -32,6 +32,17 @@ The app was built privately for Skeninge VVS. The source code is public as part 
 - [@react-pdf/renderer](https://react-pdf.org/) for invoice and quote PDFs
 - [UploadThing](https://uploadthing.com/) for file uploads
 
+## Skills demonstrated
+
+- **Full-stack TypeScript with Next.js:** App Router, Server Components for reads, and Server Actions for writes, with a clear split between the two (`queries.ts` vs. `job-actions.ts`)
+- **Databases:** Prisma schema design, data-preserving migrations on PostgreSQL, transactions with `FOR UPDATE` row locks so invoice and quote numbers are never handed out twice, and raw SQL aggregation for the statistics page
+- **Security:** authentication with better-auth, server-side validation with zod, an ownership check on every id that comes from the client, Content Security Policy headers, and an upload registry so only the company's own files can be attached or deleted
+- **Domain modelling for Swedish invoicing:** VAT, ROT tax deduction, reverse-charge VAT for construction, rounding to whole kronor, and invoices that are never changed once issued (stored as snapshots and corrected with credit notes, as Swedish bookkeeping law requires)
+- **Forms and UI:** react-hook-form + zod, Tailwind CSS and shadcn/ui, and a mobile-first layout built for use on a phone at the job site
+- **Documents and data:** invoice and quote PDFs with react-pdf, CSV export, and import of a wholesaler's price files
+- **Deployment and operations:** Vercel hosting, a scheduled cron job, and a Neon Postgres database in the same region
+- **Working with AI coding agents:** project rules for AI assistants in [AGENTS.md](AGENTS.md), so that generated code follows the same domain and security rules
+
 ## Getting started
 
 ### 1. Environment variables
