@@ -2,6 +2,8 @@
 
 Personal job, customer, and invoice log for a one-person plumbing/HVAC (VVS) business. Built for a single user — no multi-tenancy, no team, no subscription.
 
+The app was built privately for Skeninge VVS. The source code is public as part of my portfolio — it is **not open source**. See [License](#license).
+
 ## Screenshots
 
 
@@ -92,3 +94,14 @@ prisma/
 ## Deployment
 
 The app is built to run on Vercel with an external Postgres database (e.g. Neon). Set the same environment variables as above in the project settings, with `BETTER_AUTH_URL` set to the production `https://` domain. `vercel.json` runs the functions in London (`lhr1`), close to the database – change it if the database moves. It also schedules the daily upload cleanup (03:00 UTC), which needs `CRON_SECRET`. Moving the app to Skeninge VVS' own accounts and domain is described in [issue #32](https://github.com/knixan/skeningevvs-loggen/issues/32).
+
+## License
+
+Copyright © 2026 knixan. All rights reserved.
+
+This project was built privately for Skeninge VVS and is published here only to be shown in my portfolio.
+
+- **Allowed:** reading and studying the code for **educational purposes** — for example to learn from it, or to discuss it in a course or classroom.
+- **Not allowed:** copying, redistributing, or using the code, in whole or in part, **commercially** or **in another company or business** — for example running it for your own business, selling it, or building a product or service on it.
+
+If you want to use the code for anything beyond this, ask me first.
